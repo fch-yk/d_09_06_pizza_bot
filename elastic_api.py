@@ -280,3 +280,75 @@ class ElasticConnection():
             timeout=30,
         )
         response.raise_for_status()
+
+    def create_flow(
+        self,
+        enabled: bool,
+        description: str,
+        slug: str,
+        name: str
+    ) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        payload = {
+            'data': {
+                'type': 'flow',
+                'name': name,
+                'slug': slug,
+                'description': description,
+                'enabled': enabled,
+            }
+        }
+        response = requests.post(
+            url='https://api.moltin.com/v2/flows',
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def create_field(
+            self,
+            *,
+            name: str,
+            slug: str,
+            field_type: str,
+            description: str,
+            required: bool,
+            enabled: bool,
+            flow_id: str
+    ) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        payload = {
+            'data': {
+                'type': 'field',
+                'name': name,
+                'slug': slug,
+                'field_type': field_type,
+                'description': description,
+                'required': required,
+                'enabled': enabled,
+                'relationships': {
+                    'flow': {
+                        'data': {
+                            'type': 'flow',
+                            'id': flow_id,
+                        },
+                    },
+                },
+            },
+        }
+        response = requests.post(
+            url='https://api.moltin.com/v2/fields',
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()

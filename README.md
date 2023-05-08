@@ -29,7 +29,14 @@ pip install -r requirements.txt
 - Go to [@BotFather](https://t.me/BotFather) and register your **Telegram shop bot**;
   - _Note_: Bots can't initiate conversations with users. You must send a message to your bot first;
 - Go to [redislabs.com](https://redislabs.com/) and create your **Redis database**;
-- Go to [elasticpath.com](https://euwest.cm.elasticpath.com/) and create your **Elastic store**, add products, a price book, a catalog, a hierarchy, currencies and so on. You can use `load_menu.py` script to load products from JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
+- Go to [elasticpath.com](https://euwest.cm.elasticpath.com/):
+  - create your **Elastic store**;
+  - add a price book;
+  - add a catalog;
+  - add a hierarchy;
+  - add currencies;
+  - add products; you can use `load_menu.py` script to load products from JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
+  - using the script `create_pizzerias_model.py`, add a flow `Pizzerias` (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
 - Set up environmental variables in your operating system or in .env file. The variables are:
   - `FISH_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
   - `REDIS_HOST` is a public endpoint for your **Redis database** (obligatory);
@@ -65,6 +72,21 @@ Options:
 - `--file {file path}` - path to JSON file to load, default: downloads/menu.json, the example of the file is [here](downloads/menu.json);
 - `--hierarchy_id {hierarchy id}` - the hierarchy id in the Elastic store;
 - `--node_id {node id}` - the node id in the Elastic store.
+
+## Script `create_pizzerias_model.py`
+
+The script creates a flow `Pizzerias` with the following fields:
+
+- `Address` (string);
+- `Alias` (string);
+- `Longitude` (float);
+- `Latitude` (float);
+
+Run:
+
+```bash
+python create_pizzeria_model.py
+```
 
 ## Usage of the Telegram shop bot
 
