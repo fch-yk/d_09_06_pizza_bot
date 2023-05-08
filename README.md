@@ -35,8 +35,9 @@ pip install -r requirements.txt
   - add a catalog;
   - add a hierarchy;
   - add currencies;
-  - add products; you can use `load_menu.py` script to load products from JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
-  - using the script `create_pizzerias_model.py`, add a flow `Pizzerias` (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
+  - add products; you can use the `load_menu.py` script to load products from the JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
+  - add a flow `Pizzerias`; you can use the `create_pizzerias_model.py` script,  (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
+  - add pizzerias entries; you can use the `load_addresses.py` script to load pizzerias from the JSON file (see [Script `load_addresses.py`](#script-load_addressespy) for more);
 - Set up environmental variables in your operating system or in .env file. The variables are:
   - `FISH_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
   - `REDIS_HOST` is a public endpoint for your **Redis database** (obligatory);
@@ -63,12 +64,12 @@ The script loads products to the Elastic store. If the the hierarchy id and the 
 Usage of the `load_menu.py` script:
 
 ```bash
-load_menu.py [-h] [--file {file path}] [--hierarchy_id {hierarchy id}] [--node_id {node id}]
+python load_menu.py [-h] [--file {file path}] [--hierarchy_id {hierarchy id}] [--node_id {node id}]
 ```
 
 Options:
 
-- `-h, --help` - show the help message and exit;
+- `-h`, `--help` - show the help message and exit;
 - `--file {file path}` - path to JSON file to load, default: downloads/menu.json, the example of the file is [here](downloads/menu.json);
 - `--hierarchy_id {hierarchy id}` - the hierarchy id in the Elastic store;
 - `--node_id {node id}` - the node id in the Elastic store.
@@ -87,6 +88,20 @@ Run:
 ```bash
 python create_pizzeria_model.py
 ```
+
+## Script `load_addresses.py`
+
+The script loads entries to the Elastic store `Pizzerias` flow.
+Usage of the script:
+
+```bash
+python load_addresses.py [-h] [--file {file path}]
+```
+
+options:
+
+- `-h`, `--help` - show the help message and exit;
+- `--file {file path}` - path to the JSON file to load, default: downloads/addresses.json, the example of the file is [here](downloads/addresses.json);
 
 ## Usage of the Telegram shop bot
 

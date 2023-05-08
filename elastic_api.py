@@ -302,7 +302,7 @@ class ElasticConnection():
             }
         }
         response = requests.post(
-            url='https://api.moltin.com/v2/flows',
+            url='https://api.moltin.com/v2/flows/',
             headers=headers,
             json=payload,
             timeout=30,
@@ -345,7 +345,36 @@ class ElasticConnection():
             },
         }
         response = requests.post(
-            url='https://api.moltin.com/v2/fields',
+            url='https://api.moltin.com/v2/fields/',
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def create_pizzeria(
+        self,
+        address: str,
+        alias: str,
+        longitude: float,
+        latitude: float
+    ) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        payload = {
+            'data': {
+                'type': 'entry',
+                'address': address,
+                'alias': alias,
+                'longitude': longitude,
+                'latitude': latitude,
+            }
+        }
+        response = requests.post(
+            url='https://api.moltin.com/v2/flows/pizzerias/entries/',
             headers=headers,
             json=payload,
             timeout=30,
