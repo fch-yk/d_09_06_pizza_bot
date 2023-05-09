@@ -17,9 +17,9 @@ def create_parser():
         metavar='{file path}',
         help=(
             'path to JSON file to load, '
-            'default: downloads/addresses.json'
+            'default: upload/addresses.json'
         ),
-        default='downloads/addresses.json'
+        default='upload/addresses.json'
     )
 
     return parser

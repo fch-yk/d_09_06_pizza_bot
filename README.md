@@ -64,15 +64,16 @@ The script loads products to the Elastic store. If the the hierarchy id and the 
 Usage of the `load_menu.py` script:
 
 ```bash
-python load_menu.py [-h] [--file {file path}] [--hierarchy_id {hierarchy id}] [--node_id {node id}]
+python load_menu.py [-h] [--file {file path}] [--hierarchy_id {hierarchy id}] [--node_id {node id}] [--price_book_id {price book id}]
 ```
 
 Options:
 
 - `-h`, `--help` - show the help message and exit;
-- `--file {file path}` - path to JSON file to load, default: downloads/menu.json, the example of the file is [here](downloads/menu.json);
+- `--file {file path}` - path to JSON file to load, default: upload/menu.json, the example of the file is [here](upload/menu.json);
 - `--hierarchy_id {hierarchy id}` - the hierarchy id in the Elastic store;
-- `--node_id {node id}` - the node id in the Elastic store.
+- `--node_id {node id}` - the node id in the Elastic store;
+- `--price_book_id {price book id}` - the price book id in the Elastic store. If this option is omitted, the prices of the products will not be loaded
 
 ## Script `create_pizzerias_model.py`
 
@@ -101,7 +102,7 @@ python load_addresses.py [-h] [--file {file path}]
 options:
 
 - `-h`, `--help` - show the help message and exit;
-- `--file {file path}` - path to the JSON file to load, default: downloads/addresses.json, the example of the file is [here](downloads/addresses.json);
+- `--file {file path}` - path to the JSON file to load, default: upload/addresses.json, the example of the file is [here](upload/addresses.json);
 
 ## Usage of the Telegram shop bot
 

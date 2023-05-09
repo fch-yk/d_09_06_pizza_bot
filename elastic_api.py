@@ -381,3 +381,37 @@ class ElasticConnection():
         )
         response.raise_for_status()
         return response.json()
+
+    def create_product_price(
+            self,
+            price_book_id: str,
+            product_sku: str,
+            currency_code: str,
+            amount: int
+    ) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        payload = {
+            'data': {
+                'type': 'product-price',
+                'attributes': {
+                    'sku': product_sku,
+                    'currencies': {
+                        currency_code: {'amount': amount}
+                    },
+                }
+            }
+        }
+        response = requests.post(
+            url=(
+                'https://api.moltin.com/pcm/pricebooks/'
+                f'{price_book_id}/prices/'
+            ),
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
