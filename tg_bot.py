@@ -23,7 +23,10 @@ def get_chunked_products(elastic_connection: ElasticConnection) -> List:
 
 
 def get_menu_text():
-    return '<b>Меню:</b>'
+    return (
+        '<b>Наше меню</b>\n\n'
+        'Выбирайте, пожалуйста:'
+    )
 
 
 def get_menu_reply_markup(
