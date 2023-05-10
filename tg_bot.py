@@ -1,4 +1,5 @@
 import functools
+import html
 from textwrap import dedent
 from typing import Dict
 
@@ -69,8 +70,8 @@ def get_cart_text(cart: Dict, cart_items: Dict) -> str:
         price_with_tax = display_price['with_tax']
         product_text = dedent(
             f'''\
-            <em>{cart_item['name']}</em>
-            {cart_item['description']}
+            <em>{html.escape(cart_item['name'], quote=True)}</em>
+            {html.escape(cart_item['description'], quote=True)}
             {price_with_tax['unit']['formatted']} за шт.
             <em>{quantity} шт. за {price_with_tax['value']['formatted']}</em>
 
@@ -169,9 +170,9 @@ def handle_menu(
     price = product["attributes"]["price"]["RUB"]["amount"]
     formatted_price = '{:.2f}'.format(price)
     caption = (
-        f'<b>{product["attributes"]["name"]}</b>\n\n'
+        f'<b>{html.escape(product["attributes"]["name"], quote=True)}</b>\n\n'
         f'<em>{formatted_price} руб. за шт.</em>\n\n'
-        f'{product["attributes"]["description"]}'
+        f'{html.escape(product["attributes"]["description"], quote=True)}'
     )
 
     adding_button = InlineKeyboardButton(
