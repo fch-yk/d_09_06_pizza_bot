@@ -1,38 +1,69 @@
 import functools
 from textwrap import dedent
-from typing import Dict
+from typing import Dict, List
 
 from environs import Env
+from more_itertools import chunked
 from redis import Redis
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
+                      Update)
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
 
 from elastic_api import ElasticConnection
 
 
+def get_chunked_products(elastic_connection: ElasticConnection) -> List:
+    products = [
+        {'name': product['attributes']['name'], 'id': product['id']}
+        for product in elastic_connection.get_products()['data']
+    ]
+    chunk_size = 8
+    return list(chunked(products, chunk_size))
+
+
+def get_menu_text():
+    return '<b>Меню:</b>'
+
+
 def get_menu_reply_markup(
-    elastic_connection: ElasticConnection
+    chunked_products: List,
+    chunk_index: int
 ) -> InlineKeyboardMarkup:
-    products = elastic_connection.get_products()
+
     keyboard = []
-    for product in products['data']:
-        keyboard.append(
-            [
-                InlineKeyboardButton(
-                    product['attributes']['name'],
-                    callback_data=product['id']
-                )
-            ]
-        )
+    if chunked_products:
+        for product in chunked_products[chunk_index]:
+            keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        product['name'],
+                        callback_data=product["id"]
+                    )
+                ]
+            )
+        chunkes_number = len(chunked_products)
+        pagination_buttons = []
+        if chunk_index > 0:
+            callback_data = f'pagination: {chunk_index - 1}'
+            pagination_buttons.append(
+                InlineKeyboardButton(text='<<', callback_data=callback_data)
+            )
+        if chunkes_number-1 > chunk_index:
+            callback_data = f'pagination: {chunk_index + 1}'
+            pagination_buttons.append(
+                InlineKeyboardButton(text='>>', callback_data=callback_data)
+            )
+        if pagination_buttons:
+            keyboard.append(pagination_buttons)
     keyboard.append(
-        [InlineKeyboardButton(text='Cart', callback_data='Cart')]
+        [InlineKeyboardButton(text='Корзина', callback_data='Cart')]
     )
     return InlineKeyboardMarkup(keyboard)
 
 
 def get_cart_text(cart: Dict, cart_items: Dict) -> str:
-    cart_text = 'Ваша корзина:\n\n'
+    cart_text = '<b>Ваша корзина:</b>\n\n'
     total = cart["data"]["meta"]["display_price"]["with_tax"]["formatted"]
 
     for cart_item in cart_items['data']:
@@ -41,16 +72,16 @@ def get_cart_text(cart: Dict, cart_items: Dict) -> str:
         price_with_tax = display_price['with_tax']
         product_text = dedent(
             f'''\
-            {cart_item['name']}
+            <em>{cart_item['name']}</em>
             {cart_item['description']}
             {price_with_tax['unit']['formatted']} за шт.
-            {quantity} шт. за {price_with_tax['value']['formatted']}
+            <em>{quantity} шт. за {price_with_tax['value']['formatted']}</em>
 
             '''
         )
         cart_text += product_text
 
-    return f'{cart_text} Total {total}'
+    return f'{cart_text} <b>ИТОГО: {total}</b>'
 
 
 def get_cart_reply_markup(cart_items: Dict) -> InlineKeyboardMarkup:
@@ -81,8 +112,13 @@ def start(
     context: CallbackContext,
     elastic_connection: ElasticConnection
 ) -> str:
-    reply_markup = get_menu_reply_markup(elastic_connection)
-    update.message.reply_text('Меню:', reply_markup=reply_markup)
+    chunked_products = get_chunked_products(elastic_connection)
+    reply_markup = get_menu_reply_markup(chunked_products, 0)
+    update.message.reply_text(
+        get_menu_text(),
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
+    )
 
     return 'HANDLE_MENU'
 
@@ -107,32 +143,48 @@ def handle_menu(
         cart_items = elastic_connection.get_cart_items(cart_id=chat_id)
         cart_text = get_cart_text(cart=cart, cart_items=cart_items)
         reply_markup = get_cart_reply_markup(cart_items=cart_items)
-        query.message.edit_text(text=cart_text, reply_markup=reply_markup)
+        query.message.edit_text(
+            text=cart_text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
         return 'HANDLE_CART'
+
+    if query.data.startswith('pagination: '):
+        chunked_products = get_chunked_products(elastic_connection)
+        chunk_index = int(query.data.replace('pagination: ', ''))
+        chunk_index = min(chunk_index, len(chunked_products) - 1)
+        reply_markup = get_menu_reply_markup(
+            chunked_products=chunked_products,
+            chunk_index=chunk_index
+        )
+        query.message.edit_text(
+            text=get_menu_text(),
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+        return 'HANDLE_MENU'
 
     product_id = query.data
     product = elastic_connection.get_product(product_id)["data"]
     main_image_id = product['relationships']['main_image']['data']['id']
     image_link = elastic_connection.get_file_link(main_image_id)
+    price = product["attributes"]["price"]["RUB"]["amount"]
+    formatted_price = '{:.2f}'.format(price)
     caption = (
-        f'{product["attributes"]["name"]}\n\n'
-        f'{product["meta"]["display_price"]["without_tax"]["formatted"]} '
-        'per kg\n\n'
+        f'<b>{product["attributes"]["name"]}</b>\n\n'
+        f'<em>{formatted_price} руб. за шт.</em>\n\n'
         f'{product["attributes"]["description"]}'
     )
-    quantity_buttons = []
-    for quantity in (1, 5, 10):
-        quantity_buttons.append(
-            InlineKeyboardButton(
-                text=f'{quantity}',
-                callback_data=f'{product_id},{quantity}'
-            )
-        )
 
+    adding_button = InlineKeyboardButton(
+        text='Добавить в корзину',
+        callback_data=product_id
+    )
     keyboard = [
-        quantity_buttons,
+        [adding_button],
         [InlineKeyboardButton(text='Корзина', callback_data='Cart')],
-        [InlineKeyboardButton('Back', callback_data='Back')]
+        [InlineKeyboardButton('Назад', callback_data='Back')]
     ]
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -140,7 +192,8 @@ def handle_menu(
         chat_id=chat_id,
         photo=image_link,
         caption=caption,
-        reply_markup=reply_markup
+        reply_markup=reply_markup,
+        parse_mode=ParseMode.HTML
     )
     context.bot.delete_message(
         chat_id=chat_id,
@@ -162,11 +215,13 @@ def handle_description(
     chat_id = query.from_user.id
     if query.data == 'Back':
         query.answer()
-        reply_markup = get_menu_reply_markup(elastic_connection)
+        chunked_products = get_chunked_products(elastic_connection)
+        reply_markup = get_menu_reply_markup(chunked_products, 0)
         context.bot.send_message(
             chat_id=chat_id,
-            text='Меню:',
-            reply_markup=reply_markup
+            text=get_menu_text(),
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
         )
         context.bot.delete_message(
             chat_id=chat_id,
@@ -183,7 +238,8 @@ def handle_description(
         context.bot.send_message(
             chat_id=chat_id,
             text=cart_text,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
         )
         context.bot.delete_message(
             chat_id=chat_id,
@@ -191,11 +247,11 @@ def handle_description(
         )
         return 'HANDLE_CART'
 
-    product_id, quantity = query.data.split(',')
+    product_id = query.data
     elastic_connection.add_product_to_cart(
         cart_id=chat_id,
         product_id=product_id,
-        quantity=int(quantity)
+        quantity=1
     )
     query.answer(
         text='Товар был добавлен в корзину'
@@ -215,9 +271,14 @@ def handle_cart(
     query.answer()
     chat_id = query.from_user.id
     if query.data == 'To menu':
-        menu_text = 'Меню:'
-        reply_markup = get_menu_reply_markup(elastic_connection)
-        query.message.edit_text(text=menu_text, reply_markup=reply_markup)
+        menu_text = get_menu_text()
+        chunked_products = get_chunked_products(elastic_connection)
+        reply_markup = get_menu_reply_markup(chunked_products, 0)
+        query.message.edit_text(
+            text=menu_text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
 
         return 'HANDLE_MENU'
 
@@ -233,7 +294,8 @@ def handle_cart(
     cart_items = elastic_connection.get_cart_items(cart_id=chat_id)
 
     query.message.edit_text(
-        text=get_cart_text(cart=cart, cart_items=cart_items)
+        text=get_cart_text(cart=cart, cart_items=cart_items),
+        parse_mode=ParseMode.HTML
     )
     query.message.edit_reply_markup(
         reply_markup=get_cart_reply_markup(cart_items=cart_items)

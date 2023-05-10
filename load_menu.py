@@ -84,7 +84,7 @@ def main():
             price_book_id=args.price_book_id,
             product_sku=product_creation_response['data']['attributes']['sku'],
             currency_code='RUB',
-            amount=product['price'] * 100
+            amount=product['price']
         )
 
     if not (args.hierarchy_id and args.node_id):
