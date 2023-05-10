@@ -1,9 +1,8 @@
 import functools
 from textwrap import dedent
-from typing import Dict, List
+from typing import Dict
 
 from environs import Env
-from more_itertools import chunked
 from redis import Redis
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
                       Update)
@@ -11,15 +10,6 @@ from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
 
 from elastic_api import ElasticConnection
-
-
-def get_chunked_products(elastic_connection: ElasticConnection) -> List:
-    products = [
-        {'name': product['attributes']['name'], 'id': product['id']}
-        for product in elastic_connection.get_products()['data']
-    ]
-    chunk_size = 8
-    return list(chunked(products, chunk_size))
 
 
 def get_menu_text():
@@ -30,30 +20,34 @@ def get_menu_text():
 
 
 def get_menu_reply_markup(
-    chunked_products: List,
-    chunk_index: int
+    elastic_connection: ElasticConnection,
+    page_offset: int
 ) -> InlineKeyboardMarkup:
-
+    page_limit = 8
+    products_response = elastic_connection.get_products_page(
+        page_limit=page_limit,
+        page_offset=page_offset,
+    )
     keyboard = []
-    if chunked_products:
-        for product in chunked_products[chunk_index]:
+    if products_response['data']:
+        for product in products_response['data']:
             keyboard.append(
                 [
                     InlineKeyboardButton(
-                        product['name'],
-                        callback_data=product["id"]
+                        product['attributes']['name'],
+                        callback_data=product['id']
                     )
                 ]
             )
-        chunkes_number = len(chunked_products)
+        total_products_number = products_response['meta']['results']['total']
         pagination_buttons = []
-        if chunk_index > 0:
-            callback_data = f'pagination: {chunk_index - 1}'
+        if page_offset > 0:
+            callback_data = f'pagination: {page_offset - page_limit}'
             pagination_buttons.append(
                 InlineKeyboardButton(text='<<', callback_data=callback_data)
             )
-        if chunkes_number-1 > chunk_index:
-            callback_data = f'pagination: {chunk_index + 1}'
+        if total_products_number > page_offset + page_limit:
+            callback_data = f'pagination: {page_offset + page_limit}'
             pagination_buttons.append(
                 InlineKeyboardButton(text='>>', callback_data=callback_data)
             )
@@ -115,8 +109,10 @@ def start(
     context: CallbackContext,
     elastic_connection: ElasticConnection
 ) -> str:
-    chunked_products = get_chunked_products(elastic_connection)
-    reply_markup = get_menu_reply_markup(chunked_products, 0)
+    reply_markup = get_menu_reply_markup(
+        elastic_connection=elastic_connection,
+        page_offset=0
+    )
     update.message.reply_text(
         get_menu_text(),
         reply_markup=reply_markup,
@@ -154,12 +150,10 @@ def handle_menu(
         return 'HANDLE_CART'
 
     if query.data.startswith('pagination: '):
-        chunked_products = get_chunked_products(elastic_connection)
-        chunk_index = int(query.data.replace('pagination: ', ''))
-        chunk_index = min(chunk_index, len(chunked_products) - 1)
+        page_offset = int(query.data.replace('pagination: ', ''))
         reply_markup = get_menu_reply_markup(
-            chunked_products=chunked_products,
-            chunk_index=chunk_index
+            elastic_connection=elastic_connection,
+            page_offset=page_offset
         )
         query.message.edit_text(
             text=get_menu_text(),
@@ -218,8 +212,10 @@ def handle_description(
     chat_id = query.from_user.id
     if query.data == 'Back':
         query.answer()
-        chunked_products = get_chunked_products(elastic_connection)
-        reply_markup = get_menu_reply_markup(chunked_products, 0)
+        reply_markup = get_menu_reply_markup(
+            elastic_connection=elastic_connection,
+            page_offset=0
+        )
         context.bot.send_message(
             chat_id=chat_id,
             text=get_menu_text(),
@@ -275,8 +271,10 @@ def handle_cart(
     chat_id = query.from_user.id
     if query.data == 'To menu':
         menu_text = get_menu_text()
-        chunked_products = get_chunked_products(elastic_connection)
-        reply_markup = get_menu_reply_markup(chunked_products, 0)
+        reply_markup = get_menu_reply_markup(
+            elastic_connection=elastic_connection,
+            page_offset=0
+        )
         query.message.edit_text(
             text=menu_text,
             reply_markup=reply_markup,

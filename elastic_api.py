@@ -47,12 +47,16 @@ class ElasticConnection():
         response.raise_for_status()
         return response.json()
 
-    def get_products_page(self):
+    def get_products_page(
+            self,
+            page_limit: int,
+            page_offset: int
+    ):
         self.set_access_token()
         headers = {
             'Authorization': f'Bearer {self.access_token}',
         }
-        payload = {'page[limit]': 8, 'page[offset]': 16}
+        payload = {'page[limit]': page_limit, 'page[offset]': page_offset}
         response = requests.get(
             'https://api.moltin.com/pcm/products/',
             headers=headers,
