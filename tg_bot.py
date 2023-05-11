@@ -3,6 +3,7 @@ import html
 from textwrap import dedent
 from typing import Dict
 
+import requests
 from environs import Env
 from redis import Redis
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
@@ -11,6 +12,26 @@ from telegram.ext import (CallbackContext, CallbackQueryHandler,
                           CommandHandler, Filters, MessageHandler, Updater)
 
 from elastic_api import ElasticConnection
+
+
+def fetch_coordinates(apikey, address):
+    base_url = "https://geocode-maps.yandex.ru/1.x"
+    response = requests.get(base_url,
+                            params={
+                                "geocode": address,
+                                "apikey": apikey,
+                                "format": "json",
+                            })
+    response.raise_for_status()
+    found_response = response.json()['response']
+    found_places = found_response['GeoObjectCollection']['featureMember']
+
+    if not found_places:
+        return None
+
+    most_relevant = found_places[0]
+    lon, lat = most_relevant['GeoObject']['Point']['pos'].split(" ")
+    return lat, lon
 
 
 def get_menu_text():
@@ -314,12 +335,44 @@ def handle_email(
     name = str(update.message.chat_id)
     email = update.message.text
     elastic_connection.create_customer(name=name, email=email)
-    text = 'Спасибо за заказ!\n Мы скоро свяжемся с Вами.'
+    text = 'Хорошо, пришлите нам Ваш адрес текстом или геолокацию.'
+    update.message.reply_text(text=text)
+
+    return 'HANDLE_LOCATION'
+
+
+def handle_location(
+    update: Update,
+    context: CallbackContext,
+    elastic_connection: ElasticConnection,
+    ya_api_key: str,
+):
+    latitude = longitude = None
+    if update.message.location:
+        latitude = update.message.location.latitude
+        longitude = update.message.location.longitude
+
+    if update.message.text:
+        coordinates = fetch_coordinates(
+            apikey=ya_api_key,
+            address=update.message.text
+        )
+        if coordinates:
+            latitude, longitude = coordinates
+
+    if not (latitude and longitude):
+        text = (
+            'Не удалось определить Ваши координаты.\n'
+            'Попробуйте еще раз отправить адрес текстом или геолокацию.'
+        )
+        update.message.reply_text(text=text)
+        return 'HANDLE_LOCATION'
+
+    text = f'latitude: {latitude}, longitude: {longitude}'
     reply_markup = InlineKeyboardMarkup(
         [[InlineKeyboardButton('В меню', callback_data='To menu')]]
     )
     update.message.reply_text(text=text, reply_markup=reply_markup)
-
     return 'HANDLE_CART'
 
 
@@ -327,7 +380,9 @@ def handle_users_reply(
         update: Update,
         context: CallbackContext,
         redis_connection: Redis,
-        elastic_connection: ElasticConnection) -> None:
+        elastic_connection: ElasticConnection,
+        ya_api_key: str
+) -> None:
     chat_id_prefix = 'pizza_shop_'
     chat_id = f'{chat_id_prefix}{update.message.chat_id}' if update.message\
         else f'{chat_id_prefix}{update.callback_query.from_user.id}'
@@ -340,12 +395,18 @@ def handle_users_reply(
     if not user_state:
         user_state = 'START'
 
+    location_handler = functools.partial(
+        handle_location,
+        ya_api_key=ya_api_key,
+    )
+
     states_functions = {
         'START': start,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': handle_email,
+        'HANDLE_LOCATION': location_handler,
     }
     state_handler = states_functions[user_state]
     next_state = state_handler(update, context, elastic_connection)
@@ -374,13 +435,17 @@ def main():
         handle_users_reply,
         redis_connection=redis_connection,
         elastic_connection=elastic_connection,
+        ya_api_key=env('YA_API_KEY'),
     )
 
     updater = Updater(env('PIZZA_BOT_TOKEN'))
     dispatcher = updater.dispatcher
-    dispatcher.add_handler(MessageHandler(Filters.text, users_reply_handler))
+    dispatcher.add_handler(
+        MessageHandler(Filters.text | Filters.location, users_reply_handler)
+    )
     dispatcher.add_handler(CommandHandler('start', users_reply_handler))
     dispatcher.add_handler(CallbackQueryHandler(users_reply_handler))
+
     updater.start_polling()
 
 
