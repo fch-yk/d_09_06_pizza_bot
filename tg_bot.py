@@ -5,6 +5,7 @@ from typing import Dict
 
 import requests
 from environs import Env
+from geopy.distance import distance
 from redis import Redis
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
                       Update)
@@ -341,12 +342,19 @@ def handle_email(
     return 'HANDLE_LOCATION'
 
 
+def get_pizzeria_distance_km(pizzeria):
+    return pizzeria['distance_km']
+
+
 def handle_location(
     update: Update,
     context: CallbackContext,
     elastic_connection: ElasticConnection,
     ya_api_key: str,
 ):
+    reply_markup = InlineKeyboardMarkup(
+        [[InlineKeyboardButton('В меню', callback_data='To menu')]]
+    )
     latitude = longitude = None
     if update.message.location:
         latitude = update.message.location.latitude
@@ -368,12 +376,44 @@ def handle_location(
         update.message.reply_text(text=text)
         return 'HANDLE_LOCATION'
 
-    text = f'latitude: {latitude}, longitude: {longitude}'
-    reply_markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton('В меню', callback_data='To menu')]]
+    pizzerias_response = elastic_connection.get_custom_flow_entries(
+        slug='pizzerias'
     )
+    pizzerias = pizzerias_response['data']
+    for pizzeria in pizzerias:
+        pizzeria['distance_km'] = distance(
+            (latitude, longitude),
+            (pizzeria['latitude'], pizzeria['longitude'])
+        ).km
+
+    nearest_pizzeria = min(pizzerias, key=get_pizzeria_distance_km)
+    if nearest_pizzeria['distance_km'] <= 0.5:
+        text = (f'''\
+        Может, заберете пиццу из нашей пиццерии неподалеку?
+        Она всего в {int(nearest_pizzeria['distance_km']*1000)} метрах от Вас!
+        Вот ее адрес: {nearest_pizzeria['address']}
+
+        А можем и бесплатно доставить, нам не сложно.
+        ''')
+    elif nearest_pizzeria['distance_km'] <= 5:
+        text = ('''\
+        Похоже, придется ехать до Вас на самокате.
+        Доставка будет стоить 100 рублей. Доставляем или самовывоз?
+        ''')
+    elif nearest_pizzeria['distance_km'] <= 20:
+        text = ('''\
+        Похоже, придется ехать до Вас...
+        Доставка будет стоить 300 рублей. Доставляем или самовывоз?
+        ''')
+    else:
+        text = (f'''\
+        Простите, но так далеко мы пиццу не доставим.
+        Ближайшая пиццерия в {int(nearest_pizzeria['distance_km'])} км. от Вас!
+        ''')
+
+    text = dedent(text)
     update.message.reply_text(text=text, reply_markup=reply_markup)
-    return 'HANDLE_CART'
+    return 'HANDLE_LOCATION'
 
 
 def handle_users_reply(
