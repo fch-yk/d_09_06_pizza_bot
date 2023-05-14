@@ -21,6 +21,13 @@ def create_parser():
         ),
         default='upload/addresses.json'
     )
+    parser.add_argument(
+        '--courier_tg_id',
+        type=int,
+        metavar='{Courier telegram ID}',
+        help=('Courier telegram ID '),
+        default=0
+    )
 
     return parser
 
@@ -44,7 +51,8 @@ def main():
             address=address['address']['full'],
             alias=address['alias'],
             longitude=float(coordinates['lon']),
-            latitude=float(coordinates['lat'])
+            latitude=float(coordinates['lat']),
+            courier_tg_id=args.courier_tg_id,
         )
 
 

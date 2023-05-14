@@ -55,6 +55,15 @@ def main():
         enabled=True,
         flow_id=flow_id
     )
+    elastic_connection.create_field(
+        name='Courier telegram ID',
+        slug='courier_tg_id',
+        field_type='integer',
+        description='Telegram id of a courier',
+        required=False,
+        enabled=True,
+        flow_id=flow_id
+    )
 
 
 if __name__ == '__main__':

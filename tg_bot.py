@@ -83,7 +83,7 @@ def get_menu_reply_markup(
 
 
 def get_cart_text(cart: Dict, cart_items: Dict) -> str:
-    cart_text = '<b>Ваша корзина:</b>\n\n'
+    cart_text = '<b>Корзина:</b>\n\n'
     total = cart["data"]["meta"]["display_price"]["with_tax"]["formatted"]
 
     for cart_item in cart_items['data']:
@@ -307,7 +307,7 @@ def handle_cart(
         return 'HANDLE_MENU'
 
     if query.data == 'Pay':
-        text = 'Send your email:'
+        text = 'Пришлите адрес Вашей электронной почты:'
         reply_markup = InlineKeyboardMarkup([])
         query.message.edit_text(text=text, reply_markup=reply_markup)
 
@@ -333,9 +333,19 @@ def handle_email(
     context: CallbackContext,
     elastic_connection: ElasticConnection
 ) -> str:
-    name = str(update.message.chat_id)
+    name = f'Customer_{update.message.chat_id}'
+    customers_response = elastic_connection.get_customers_by_name(name=name)
     email = update.message.text
-    elastic_connection.create_customer(name=name, email=email)
+    if customers_response['data']:
+        customer = customers_response['data'][0]
+        if customer['email'] != email:
+            elastic_connection.update_customer_email(
+                customer_id=customer['id'],
+                email=email,
+            )
+    else:
+        elastic_connection.create_customer(name=name, email=email)
+
     text = 'Хорошо, пришлите нам Ваш адрес текстом или геолокацию.'
     update.message.reply_text(text=text)
 
@@ -352,9 +362,6 @@ def handle_location(
     elastic_connection: ElasticConnection,
     ya_api_key: str,
 ):
-    reply_markup = InlineKeyboardMarkup(
-        [[InlineKeyboardButton('В меню', callback_data='To menu')]]
-    )
     latitude = longitude = None
     if update.message.location:
         latitude = update.message.location.latitude
@@ -366,7 +373,8 @@ def handle_location(
             address=update.message.text
         )
         if coordinates:
-            latitude, longitude = coordinates
+            latitude = float(coordinates[0])
+            longitude = float(coordinates[1])
 
     if not (latitude and longitude):
         text = (
@@ -387,6 +395,7 @@ def handle_location(
         ).km
 
     nearest_pizzeria = min(pizzerias, key=get_pizzeria_distance_km)
+    delivery_is_possible = True
     if nearest_pizzeria['distance_km'] <= 0.5:
         text = (f'''\
         Может, заберете пиццу из нашей пиццерии неподалеку?
@@ -410,10 +419,85 @@ def handle_location(
         Простите, но так далеко мы пиццу не доставим.
         Ближайшая пиццерия в {int(nearest_pizzeria['distance_km'])} км. от Вас!
         ''')
+        delivery_is_possible = False
+
+    name = f'Customer_{update.message.chat_id}'
+    customers_response = elastic_connection.get_customers_by_name(name=name)
+    customer = customers_response['data'][0]
+    if not (
+        customer['latitude'] == latitude and
+        customer['longitude'] == longitude
+    ):
+        elastic_connection.update_customer_location(
+            customer_id=customer['id'],
+            latitude=latitude,
+            longitude=longitude,
+        )
 
     text = dedent(text)
+    keyboard = []
+    if delivery_is_possible:
+        delivery_key = InlineKeyboardButton(
+            text='Доставка',
+            callback_data=(
+                f'Delivery,{nearest_pizzeria["courier_tg_id"]},'
+                f'{latitude},'
+                f'{longitude}'
+            )
+        )
+        keyboard.append([delivery_key])
+
+    pickup_key = InlineKeyboardButton(
+        text='Самовывоз',
+        callback_data=(
+            'Pickup,'
+            f'{nearest_pizzeria["latitude"]},'
+            f'{nearest_pizzeria["longitude"]}'
+        )
+    )
+    keyboard.append([pickup_key])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(text=text, reply_markup=reply_markup)
-    return 'HANDLE_LOCATION'
+
+    return 'HANDLE_DELIVERY_CHOICE'
+
+
+def handle_delivery_choice(
+    update: Update,
+    context: CallbackContext,
+    elastic_connection: ElasticConnection
+) -> str:
+    query = update.callback_query
+    if not query:
+        return 'HANDLE_DELIVERY_CHOICE'
+    query.answer()
+    if query.data.startswith('Pickup'):
+        pickup_query = query.data.split(sep=',')
+        latitude = float(pickup_query[1])
+        longitude = float(pickup_query[2])
+        return 'HANDLE_DELIVERY_CHOICE'
+
+    delivery_query = query.data.split(sep=',')
+    courier_tg_id = int(delivery_query[1])
+    latitude = float(delivery_query[2])
+    longitude = float(delivery_query[3])
+    chat_id = query.from_user.id
+    cart = elastic_connection.get_cart(cart_id=chat_id)
+    cart_items = elastic_connection.get_cart_items(cart_id=chat_id)
+    cart_text = get_cart_text(cart=cart, cart_items=cart_items)
+    cart_text = f'<b>Выполнить доставку:</b>\n\n{cart_text}'
+    context.bot.send_message(
+        chat_id=courier_tg_id,
+        text=cart_text,
+        parse_mode=ParseMode.HTML
+    )
+    context.bot.send_location(
+        chat_id=courier_tg_id,
+        latitude=latitude,
+        longitude=longitude,
+    )
+    return 'HANDLE_DELIVERY_CHOICE'
 
 
 def handle_users_reply(
@@ -447,6 +531,7 @@ def handle_users_reply(
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': handle_email,
         'HANDLE_LOCATION': location_handler,
+        'HANDLE_DELIVERY_CHOICE': handle_delivery_choice,
     }
     state_handler = states_functions[user_state]
     next_state = state_handler(update, context, elastic_connection)

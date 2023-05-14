@@ -38,6 +38,7 @@ pip install -r requirements.txt
   - add products; you can use the `load_menu.py` script to load products from the JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
   - add a flow `Pizzerias`; you can use the `create_pizzerias_model.py` script,  (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
   - add pizzerias entries; you can use the `load_addresses.py` script to load pizzerias from the JSON file (see [Script `load_addresses.py`](#script-load_addressespy) for more);
+  - add latitude and longitude to the `customers` flow; you can use the `add_customer_location.py` script (see [Script `add_customer_location.py`](#script-add_customer_locationpy) for more)
 - Set up environmental variables in your operating system or in .env file. The variables are:
   - `FISH_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
   - `REDIS_HOST` is a public endpoint for your **Redis database** (obligatory);
@@ -83,6 +84,7 @@ The script creates a flow `Pizzerias` with the following fields:
 - `Alias` (string);
 - `Longitude` (float);
 - `Latitude` (float);
+- `Courier telegram ID` (integer);
 
 Run:
 
@@ -96,13 +98,27 @@ The script loads entries to the Elastic store `Pizzerias` flow.
 Usage of the script:
 
 ```bash
-python load_addresses.py [-h] [--file {file path}]
+python load_addresses.py [-h] [--file {file path}] [--courier_tg_id {Courier telegram ID}]
 ```
 
 options:
 
 - `-h`, `--help` - show the help message and exit;
 - `--file {file path}` - path to the JSON file to load, default: upload/addresses.json, the example of the file is [here](upload/addresses.json);
+- `--courier_tg_id` - Courier telegram ID
+
+## Script `add_customer_location.py`
+
+The script extends the customer flow in the Elastic store. It adds the following fields:
+
+- `Longitude` (float);
+- `Latitude` (float);
+
+Run:
+
+```bash
+python add_customer_location.py
+```
 
 ## Usage of the Telegram shop bot
 

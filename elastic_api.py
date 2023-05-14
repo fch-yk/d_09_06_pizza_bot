@@ -377,7 +377,8 @@ class ElasticConnection():
         address: str,
         alias: str,
         longitude: float,
-        latitude: float
+        latitude: float,
+        courier_tg_id: int,
     ) -> Dict:
         self.set_access_token()
         headers = {
@@ -392,6 +393,9 @@ class ElasticConnection():
                 'latitude': latitude,
             }
         }
+        if courier_tg_id:
+            payload['data']['courier_tg_id'] = courier_tg_id
+
         response = requests.post(
             url='https://api.moltin.com/v2/flows/pizzerias/entries/',
             headers=headers,
@@ -444,6 +448,72 @@ class ElasticConnection():
         response = requests.get(
             url=f'https://api.moltin.com/v2/flows/{slug}/entries',
             headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_customers_by_name(self, name: str) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+
+        payload = {
+            'filter': f'eq(name,{name})'
+        }
+        response = requests.get(
+            url='https://api.moltin.com/v2/customers/',
+            headers=headers,
+            params=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def update_customer_email(self, customer_id: str, email: str) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+
+        payload = {
+            'data': {
+                'type': 'customer',
+                'email': email,
+            }
+        }
+        response = requests.put(
+            url=f'https://api.moltin.com/v2/customers/{customer_id}/',
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def update_customer_location(
+        self,
+        customer_id: str,
+        latitude: float,
+        longitude: float,
+    ) -> Dict:
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+
+        payload = {
+            'data': {
+                'type': 'customer',
+                'latitude': latitude,
+                'longitude': longitude,
+            }
+        }
+        response = requests.put(
+            url=f'https://api.moltin.com/v2/customers/{customer_id}/',
+            headers=headers,
+            json=payload,
             timeout=30,
         )
         response.raise_for_status()
