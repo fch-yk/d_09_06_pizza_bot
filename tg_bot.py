@@ -127,6 +127,19 @@ def get_cart_reply_markup(cart_items: Dict) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def remind_about_order(
+    context: CallbackContext,
+    remind_order_ad: str,
+    remind_order_help: str,
+) -> None:
+    job = context.job
+    text = (
+        f'<b>Приятного аппетита!</b>\n{html.escape(remind_order_ad)}\n\n'
+        f'<em>{html.escape(remind_order_help)}</em>'
+    )
+    context.bot.send_message(job.context, text=text, parse_mode=ParseMode.HTML)
+
+
 def start(
     update: Update,
     context: CallbackContext,
@@ -466,12 +479,16 @@ def handle_location(
 def handle_delivery_choice(
     update: Update,
     context: CallbackContext,
-    elastic_connection: ElasticConnection
+    elastic_connection: ElasticConnection,
+    remind_order_ad: str,
+    remind_order_help: str,
+    remind_order_wait: str,
 ) -> str:
     query = update.callback_query
     if not query:
         return 'HANDLE_DELIVERY_CHOICE'
     query.answer()
+    chat_id = query.from_user.id
     if query.data.startswith('Pickup'):
         pickup_query = query.data.split(sep=',')
         latitude = float(pickup_query[1])
@@ -482,7 +499,6 @@ def handle_delivery_choice(
     courier_tg_id = int(delivery_query[1])
     latitude = float(delivery_query[2])
     longitude = float(delivery_query[3])
-    chat_id = query.from_user.id
     cart = elastic_connection.get_cart(cart_id=chat_id)
     cart_items = elastic_connection.get_cart_items(cart_id=chat_id)
     cart_text = get_cart_text(cart=cart, cart_items=cart_items)
@@ -497,6 +513,18 @@ def handle_delivery_choice(
         latitude=latitude,
         longitude=longitude,
     )
+    reminder_handler = functools.partial(
+        remind_about_order,
+        remind_order_ad=remind_order_ad,
+        remind_order_help=remind_order_help,
+    )
+
+    context.job_queue.run_once(
+        reminder_handler,
+        when=remind_order_wait,
+        context=chat_id,
+        name=str(chat_id)
+    )
     return 'HANDLE_DELIVERY_CHOICE'
 
 
@@ -505,7 +533,10 @@ def handle_users_reply(
         context: CallbackContext,
         redis_connection: Redis,
         elastic_connection: ElasticConnection,
-        ya_api_key: str
+        ya_api_key: str,
+        remind_order_ad: str,
+        remind_order_help: str,
+        remind_order_wait: str,
 ) -> None:
     chat_id_prefix = 'pizza_shop_'
     chat_id = f'{chat_id_prefix}{update.message.chat_id}' if update.message\
@@ -523,6 +554,12 @@ def handle_users_reply(
         handle_location,
         ya_api_key=ya_api_key,
     )
+    delivery_choice_handler = functools.partial(
+        handle_delivery_choice,
+        remind_order_ad=remind_order_ad,
+        remind_order_help=remind_order_help,
+        remind_order_wait=remind_order_wait,
+    )
 
     states_functions = {
         'START': start,
@@ -531,7 +568,7 @@ def handle_users_reply(
         'HANDLE_CART': handle_cart,
         'WAITING_EMAIL': handle_email,
         'HANDLE_LOCATION': location_handler,
-        'HANDLE_DELIVERY_CHOICE': handle_delivery_choice,
+        'HANDLE_DELIVERY_CHOICE': delivery_choice_handler,
     }
     state_handler = states_functions[user_state]
     next_state = state_handler(update, context, elastic_connection)
@@ -556,11 +593,19 @@ def main():
             client_secret=env('PATH_CLIENT_SECRET'),
         )
 
+    with env.prefixed('REMIND_ORDER_'):
+        remind_order_ad = env('AD', 'Заказывайте снова!')
+        remind_order_help = env('HELP', 'Если заказ не доставлен - звоните!')
+        remind_order_wait = env.int('WAIT', 3600)
+
     users_reply_handler = functools.partial(
         handle_users_reply,
         redis_connection=redis_connection,
         elastic_connection=elastic_connection,
         ya_api_key=env('YA_API_KEY'),
+        remind_order_ad=remind_order_ad,
+        remind_order_help=remind_order_help,
+        remind_order_wait=remind_order_wait,
     )
 
     updater = Updater(env('PIZZA_BOT_TOKEN'))
@@ -572,6 +617,7 @@ def main():
     dispatcher.add_handler(CallbackQueryHandler(users_reply_handler))
 
     updater.start_polling()
+    updater.idle()
 
 
 if __name__ == '__main__':

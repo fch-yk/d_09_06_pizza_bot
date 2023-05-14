@@ -1,16 +1,28 @@
 # Pizza shop telegram bot
 
-The project works with the following components:
+Key features:
 
-- The **Telegram shop bot** communicates with customers on the [Telegram](https://telegram.org/) platform;
-- The **Redis database** is used to save the current customer state ("in the menu", "in the cart" and so on). Go to [redislabs.com](https://redislabs.com/) to learn more about the Redis platform.
-- The **Elastic store** is used as a [CMS](https://en.wikipedia.org/wiki/Content_management_system/); it stores information about products, prices, customers and so on. Go to [elasticpath.dev](https://elasticpath.dev/) to find out more about Elastic Path Commerce Cloud.
+- The bot shows the menu;
+- The user can go to the product details;
+- The user can add products to the cart;
+- The bot finds the nearest pizzeria and suggests a delivery or a puckup;
+- The user can make a payment;
+- The bot sends the user's location to the courier;
+- Some time after the order, the bot sends an "Enjoy your meal" message with an ad;
 
 ## Demo bots
 
 - **Telegram shop bot** demo is [here](https://t.me/yk_fish_bot).
 
 ![telegram bot image](screenshots/tg_bot.gif)
+
+## Project components
+
+The project works with the following components:
+
+- The **Telegram shop bot** communicates with customers on the [Telegram](https://telegram.org/) platform;
+- The **Redis database** is used to save the current customer state ("in the menu", "in the cart" and so on). Go to [redislabs.com](https://redislabs.com/) to learn more about the Redis platform.
+- The **Elastic store** is used as a [CMS](https://en.wikipedia.org/wiki/Content_management_system/); it stores information about products, prices, customers and so on. Go to [elasticpath.dev](https://elasticpath.dev/) to find out more about Elastic Path Commerce Cloud.
 
 ## Prerequisites
 
@@ -45,7 +57,11 @@ pip install -r requirements.txt
   - `REDIS_PASSWORD`is a password for your **Redis database** (obligatory);
   - `REDIS_PORT` is a port for your **Redis database** (obligatory);
   - `ELASTIC_PATH_CLIENT_ID` is the **Elastic store** client ID  (obligatory);
-  - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory).
+  - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory);
+  - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the develop cabinet](https://developer.tech.yandex.ru/) for more);
+  - `REMIND_ORDER_AD` is a ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
+  - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
+  - `REMIND_ORDER_WAIT` is an interval (in seconds) after the order, after which the bot sends an ad message (optional, 3600 by default);
 
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
@@ -56,6 +72,10 @@ REDIS_PASSWORD=replace_me
 REDIS_PORT=13604
 ELASTIC_PATH_CLIENT_ID=replace_me
 ELASTIC_PATH_CLIENT_SECRET=replace_me
+YA_API_KEY=replace_me
+REMIND_ORDER_AD=Будем рады приготовить для Вас снова!
+REMIND_ORDER_HELP=Если заказ до сих пор не доставлен, свяжитесь с нами!
+REMIND_ORDER_WAIT=3000
 ```
 
 ## Script `load_menu.py`
