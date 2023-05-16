@@ -62,6 +62,7 @@ pip install -r requirements.txt
   - `REMIND_ORDER_AD` is a ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
   - `REMIND_ORDER_WAIT` is an interval (in seconds) after the order, after which the bot sends an ad message (optional, 3600 by default);
+  - `PAYMENT_TOKEN` is a token from one of the payment providers; you cat go to [@BotFather](https://t.me/BotFather) - your bot properties - Payments and get a test token, for example, from Sberbank;
 
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
@@ -76,6 +77,7 @@ YA_API_KEY=replace_me
 REMIND_ORDER_AD=Будем рады приготовить для Вас снова!
 REMIND_ORDER_HELP=Если заказ до сих пор не доставлен, свяжитесь с нами!
 REMIND_ORDER_WAIT=3000
+PAYMENT_TOKEN=replace_me
 ```
 
 ## Script `load_menu.py`

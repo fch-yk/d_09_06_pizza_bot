@@ -7,10 +7,11 @@ import requests
 from environs import Env
 from geopy.distance import distance
 from redis import Redis
-from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
-                      Update)
+from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice,
+                      ParseMode, Update)
 from telegram.ext import (CallbackContext, CallbackQueryHandler,
-                          CommandHandler, Filters, MessageHandler, Updater)
+                          CommandHandler, Filters, MessageHandler,
+                          PreCheckoutQueryHandler, Updater)
 
 from elastic_api import ElasticConnection
 
@@ -108,7 +109,8 @@ def get_cart_reply_markup(cart_items: Dict) -> InlineKeyboardMarkup:
     keyboard = []
     if cart_items['data']:
         keyboard.append(
-            [InlineKeyboardButton(text='Оплатить', callback_data='Pay')]
+            [InlineKeyboardButton(text='Оформить заказ',
+                                  callback_data='Order')]
         )
 
         for cart_item in cart_items['data']:
@@ -319,7 +321,7 @@ def handle_cart(
 
         return 'HANDLE_MENU'
 
-    if query.data == 'Pay':
+    if query.data == 'Order':
         text = 'Пришлите адрес Вашей электронной почты:'
         reply_markup = InlineKeyboardMarkup([])
         query.message.edit_text(text=text, reply_markup=reply_markup)
@@ -344,9 +346,11 @@ def handle_cart(
 def handle_email(
     update: Update,
     context: CallbackContext,
-    elastic_connection: ElasticConnection
+    elastic_connection: ElasticConnection,
+    payment_token: str,
 ) -> str:
-    name = f'Customer_{update.message.chat_id}'
+    chat_id = update.message.chat_id
+    name = f'Customer_{chat_id}'
     customers_response = elastic_connection.get_customers_by_name(name=name)
     email = update.message.text
     if customers_response['data']:
@@ -359,9 +363,45 @@ def handle_email(
     else:
         elastic_connection.create_customer(name=name, email=email)
 
-    text = 'Хорошо, пришлите нам Ваш адрес текстом или геолокацию.'
-    update.message.reply_text(text=text)
+    cart_response = elastic_connection.get_cart(cart_id=chat_id)
+    price_with_tax = cart_response['data']['meta']['display_price']['with_tax']
+    context.bot.send_invoice(
+        chat_id=chat_id,
+        title='Оплата',
+        description='Заказ пиццы',
+        payload='pizza-bot-payload',
+        provider_token=payment_token,
+        currency=price_with_tax['currency'],
+        prices=[LabeledPrice('Заказ пиццы', price_with_tax['amount'] * 100)]
+    )
 
+    return 'HANDLE_PAYMENT_PRECHECKOUT'
+
+
+def handle_payment_precheckout(
+    update: Update,
+    context: CallbackContext,
+    elastic_connection: ElasticConnection
+) -> str:
+    query = update.pre_checkout_query
+    if query.invoice_payload != 'pizza-bot-payload':
+        query.answer(ok=False, error_message="Something went wrong...")
+    else:
+        query.answer(ok=True)
+    return 'HANDLE_SUCCESSFUL_PAYMENT'
+
+
+def handle_successful_payment(
+    update: Update,
+    context: CallbackContext,
+    elastic_connection: ElasticConnection
+) -> str:
+    text = (
+        '<b>Благодарим Вас за оплату!</b>\n\n'
+        'Давайте доворимся о доставке.\n'
+        '<em>Пришлите Ваш адрес текстом или геолокацию.</em>'
+    )
+    update.message.reply_text(text=text, parse_mode=ParseMode.HTML)
     return 'HANDLE_LOCATION'
 
 
@@ -418,19 +458,27 @@ def handle_location(
         А можем и бесплатно доставить, нам не сложно.
         ''')
     elif nearest_pizzeria['distance_km'] <= 5:
-        text = ('''\
+        text = (f'''\
         Похоже, придется ехать до Вас на самокате.
-        Доставка будет стоить 100 рублей. Доставляем или самовывоз?
+        Доставка будет стоить 100 рублей. Оплата - курьеру на месте.
+        Самовывоз возможен из ближайшей пиццерии.
+        Вот ее адрес: {nearest_pizzeria['address']}
+        Доставляем или самовывоз?
         ''')
     elif nearest_pizzeria['distance_km'] <= 20:
-        text = ('''\
+        text = (f'''\
         Похоже, придется ехать до Вас...
-        Доставка будет стоить 300 рублей. Доставляем или самовывоз?
+        Доставка будет стоить 300 рублей. Оплата - курьеру на месте.
+        Самовывоз возможен из ближайшей пиццерии.
+        Вот ее адрес: {nearest_pizzeria['address']}
+        Доставляем или самовывоз?
         ''')
     else:
         text = (f'''\
         Простите, но так далеко мы пиццу не доставим.
         Ближайшая пиццерия в {int(nearest_pizzeria['distance_km'])} км. от Вас!
+        Самовывоз возможен из ближайшей пиццерии.
+        Вот ее адрес: {nearest_pizzeria['address']}
         ''')
         delivery_is_possible = False
 
@@ -460,14 +508,7 @@ def handle_location(
         )
         keyboard.append([delivery_key])
 
-    pickup_key = InlineKeyboardButton(
-        text='Самовывоз',
-        callback_data=(
-            'Pickup,'
-            f'{nearest_pizzeria["latitude"]},'
-            f'{nearest_pizzeria["longitude"]}'
-        )
-    )
+    pickup_key = InlineKeyboardButton(text='Самовывоз', callback_data='Pickup')
     keyboard.append([pickup_key])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -489,11 +530,21 @@ def handle_delivery_choice(
         return 'HANDLE_DELIVERY_CHOICE'
     query.answer()
     chat_id = query.from_user.id
-    if query.data.startswith('Pickup'):
-        pickup_query = query.data.split(sep=',')
-        latitude = float(pickup_query[1])
-        longitude = float(pickup_query[2])
-        return 'HANDLE_DELIVERY_CHOICE'
+    query.message.edit_reply_markup(reply_markup=None)
+    if query.data == 'Pickup':
+        text = dedent(
+            '''\
+            <b>Спасибо!</b>
+            Вы выбрали вариант <em>Самовывоз</em>
+            Ждем Вас в нашей ближайшей пиццерии!
+            '''
+        )
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode=ParseMode.HTML,
+        )
+        return 'START'
 
     delivery_query = query.data.split(sep=',')
     courier_tg_id = int(delivery_query[1])
@@ -525,7 +576,21 @@ def handle_delivery_choice(
         context=chat_id,
         name=str(chat_id)
     )
-    return 'HANDLE_DELIVERY_CHOICE'
+
+    text = dedent(
+        '''\
+        <b>Спасибо!</b>
+        Вы выбрали вариант <em>Доставка</em>
+        Мы отправили Ваш заказ курьеру ближайшей пиццерии.
+        Доставим заказ в течение 1 часа.
+        '''
+    )
+    context.bot.send_message(
+        chat_id=chat_id,
+        text=text,
+        parse_mode=ParseMode.HTML,
+    )
+    return 'START'
 
 
 def handle_users_reply(
@@ -537,15 +602,21 @@ def handle_users_reply(
         remind_order_ad: str,
         remind_order_help: str,
         remind_order_wait: str,
+        payment_token: str,
 ) -> None:
-    chat_id_prefix = 'pizza_shop_'
-    chat_id = f'{chat_id_prefix}{update.message.chat_id}' if update.message\
-        else f'{chat_id_prefix}{update.callback_query.from_user.id}'
+    if update.message:
+        chat_id = update.message.chat_id
+    elif update.callback_query:
+        chat_id = update.callback_query.from_user.id
+    else:
+        chat_id = update.effective_user.id
+
+    redis_customer_id = f'pizza_shop_{chat_id}'
 
     if update.message and update.message.text == '/start':
         user_state = 'START'
     else:
-        user_state = redis_connection.get(chat_id)
+        user_state = redis_connection.get(redis_customer_id)
 
     if not user_state:
         user_state = 'START'
@@ -560,19 +631,25 @@ def handle_users_reply(
         remind_order_help=remind_order_help,
         remind_order_wait=remind_order_wait,
     )
+    email_handler = functools.partial(
+        handle_email,
+        payment_token=payment_token,
+    )
 
     states_functions = {
         'START': start,
         'HANDLE_MENU': handle_menu,
         'HANDLE_DESCRIPTION': handle_description,
         'HANDLE_CART': handle_cart,
-        'WAITING_EMAIL': handle_email,
+        'WAITING_EMAIL': email_handler,
+        'HANDLE_PAYMENT_PRECHECKOUT': handle_payment_precheckout,
+        'HANDLE_SUCCESSFUL_PAYMENT': handle_successful_payment,
         'HANDLE_LOCATION': location_handler,
         'HANDLE_DELIVERY_CHOICE': delivery_choice_handler,
     }
     state_handler = states_functions[user_state]
     next_state = state_handler(update, context, elastic_connection)
-    redis_connection.set(chat_id, next_state)
+    redis_connection.set(redis_customer_id, next_state)
 
 
 def main():
@@ -606,15 +683,22 @@ def main():
         remind_order_ad=remind_order_ad,
         remind_order_help=remind_order_help,
         remind_order_wait=remind_order_wait,
+        payment_token=env('PAYMENT_TOKEN'),
     )
 
     updater = Updater(env('PIZZA_BOT_TOKEN'))
     dispatcher = updater.dispatcher
     dispatcher.add_handler(
-        MessageHandler(Filters.text | Filters.location, users_reply_handler)
+        MessageHandler(
+            filters=(
+                Filters.text | Filters.location | Filters.successful_payment
+            ),
+            callback=users_reply_handler
+        )
     )
     dispatcher.add_handler(CommandHandler('start', users_reply_handler))
     dispatcher.add_handler(CallbackQueryHandler(users_reply_handler))
+    dispatcher.add_handler(PreCheckoutQueryHandler(users_reply_handler))
 
     updater.start_polling()
     updater.idle()
