@@ -398,7 +398,7 @@ def handle_successful_payment(
 ) -> str:
     text = (
         '<b>Благодарим Вас за оплату!</b>\n\n'
-        'Давайте доворимся о доставке.\n'
+        'Давайте договоримся о доставке.\n'
         '<em>Пришлите Ваш адрес текстом или геолокацию.</em>'
     )
     update.message.reply_text(text=text, parse_mode=ParseMode.HTML)

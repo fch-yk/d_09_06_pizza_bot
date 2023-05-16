@@ -5,16 +5,22 @@ Key features:
 - The bot shows the menu;
 - The user can go to the product details;
 - The user can add products to the cart;
-- The bot finds the nearest pizzeria and suggests a delivery or a puckup;
+- The bot finds the nearest pizzeria and suggests a delivery or a pickup;
 - The user can make a payment;
 - The bot sends the user's location to the courier;
 - Some time after the order, the bot sends an "Enjoy your meal" message with an ad;
 
-## Demo bots
+**Picture 1.** _The user chooses pizzas_
 
-- **Telegram shop bot** demo is [here](https://t.me/yk_fish_bot).
+![bot choice](screenshots/bot_choice.gif)
 
-![telegram bot image](screenshots/tg_bot.gif)
+**Picture 2.** _Payment_
+
+![bot payment](screenshots/bot_payment.gif)
+
+**Picture 3.** _Delivery arrangement_
+
+![bot delivery](screenshots/bot_delivery.gif)
 
 ## Project components
 
@@ -52,14 +58,14 @@ pip install -r requirements.txt
   - add pizzerias entries; you can use the `load_addresses.py` script to load pizzerias from the JSON file (see [Script `load_addresses.py`](#script-load_addressespy) for more);
   - add latitude and longitude to the `customers` flow; you can use the `add_customer_location.py` script (see [Script `add_customer_location.py`](#script-add_customer_locationpy) for more)
 - Set up environmental variables in your operating system or in .env file. The variables are:
-  - `FISH_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
+  - `PIZZA_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
   - `REDIS_HOST` is a public endpoint for your **Redis database** (obligatory);
   - `REDIS_PASSWORD`is a password for your **Redis database** (obligatory);
   - `REDIS_PORT` is a port for your **Redis database** (obligatory);
   - `ELASTIC_PATH_CLIENT_ID` is the **Elastic store** client ID  (obligatory);
   - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory);
-  - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the develop cabinet](https://developer.tech.yandex.ru/) for more);
-  - `REMIND_ORDER_AD` is a ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
+  - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the developer cabinet](https://developer.tech.yandex.ru/) for more);
+  - `REMIND_ORDER_AD` is an ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
   - `REMIND_ORDER_WAIT` is an interval (in seconds) after the order, after which the bot sends an ad message (optional, 3600 by default);
   - `PAYMENT_TOKEN` is a token from one of the payment providers; you cat go to [@BotFather](https://t.me/BotFather) - your bot properties - Payments and get a test token, for example, from Sberbank;
@@ -67,7 +73,7 @@ pip install -r requirements.txt
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
 ```bash
-FISH_BOT_TOKEN=replace_me
+PIZZA_BOT_TOKEN=replace_me
 REDIS_HOST=replace_me
 REDIS_PASSWORD=replace_me
 REDIS_PORT=13604
@@ -82,7 +88,7 @@ PAYMENT_TOKEN=replace_me
 
 ## Script `load_menu.py`
 
-The script loads products to the Elastic store. If the the hierarchy id and the node id are provided, the relationships will be created too.
+The script loads products to the Elastic store. If the hierarchy ID and the node ID are provided, the relationships will be created too.
 
 Usage of the `load_menu.py` script:
 
@@ -94,9 +100,9 @@ Options:
 
 - `-h`, `--help` - show the help message and exit;
 - `--file {file path}` - path to JSON file to load, default: upload/menu.json, the example of the file is [here](upload/menu.json);
-- `--hierarchy_id {hierarchy id}` - the hierarchy id in the Elastic store;
-- `--node_id {node id}` - the node id in the Elastic store;
-- `--price_book_id {price book id}` - the price book id in the Elastic store. If this option is omitted, the prices of the products will not be loaded
+- `--hierarchy_id {hierarchy id}` - the hierarchy ID in the Elastic store;
+- `--node_id {node id}` - the node ID in the Elastic store;
+- `--price_book_id {price book id}` - the price book ID in the Elastic store. If this option is omitted, the prices of the products will not be loaded
 
 ## Script `create_pizzerias_model.py`
 
@@ -131,7 +137,7 @@ options:
 
 ## Script `add_customer_location.py`
 
-The script extends the customer flow in the Elastic store. It adds the following fields:
+The script extends the customer core flow in the Elastic store. It adds the following fields:
 
 - `Longitude` (float);
 - `Latitude` (float);
