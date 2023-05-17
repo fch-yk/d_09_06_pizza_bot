@@ -33,7 +33,7 @@ def fetch_coordinates(apikey, address):
 
     most_relevant = found_places[0]
     lon, lat = most_relevant['GeoObject']['Point']['pos'].split(" ")
-    return lat, lon
+    return float(lat), float(lon)
 
 
 def get_menu_text():
@@ -426,8 +426,7 @@ def handle_location(
             address=update.message.text
         )
         if coordinates:
-            latitude = float(coordinates[0])
-            longitude = float(coordinates[1])
+            latitude, longitude = coordinates
 
     if not (latitude and longitude):
         text = (
@@ -501,7 +500,7 @@ def handle_location(
         delivery_key = InlineKeyboardButton(
             text='Доставка',
             callback_data=(
-                f'Delivery,{nearest_pizzeria["courier_tg_id"]},'
+                f'{nearest_pizzeria["courier_tg_id"]},'
                 f'{latitude},'
                 f'{longitude}'
             )
@@ -546,23 +545,20 @@ def handle_delivery_choice(
         )
         return 'START'
 
-    delivery_query = query.data.split(sep=',')
-    courier_tg_id = int(delivery_query[1])
-    latitude = float(delivery_query[2])
-    longitude = float(delivery_query[3])
+    courier_tg_id, latitude, longitude = query.data.split(sep=',')
     cart = elastic_connection.get_cart(cart_id=chat_id)
     cart_items = elastic_connection.get_cart_items(cart_id=chat_id)
     cart_text = get_cart_text(cart=cart, cart_items=cart_items)
     cart_text = f'<b>Выполнить доставку:</b>\n\n{cart_text}'
     context.bot.send_message(
-        chat_id=courier_tg_id,
+        chat_id=int(courier_tg_id),
         text=cart_text,
         parse_mode=ParseMode.HTML
     )
     context.bot.send_location(
-        chat_id=courier_tg_id,
-        latitude=latitude,
-        longitude=longitude,
+        chat_id=int(courier_tg_id),
+        latitude=float(latitude),
+        longitude=float(longitude),
     )
     reminder_handler = functools.partial(
         remind_about_order,
