@@ -37,8 +37,7 @@ def webhook():
                 if messaging_event.get("message"):
                     print(messaging_event)
                     sender_id = messaging_event["sender"]["id"]
-                    message_text = messaging_event["message"]["text"]
-                    send_message(sender_id, message_text)
+                    send_menu(sender_id)
     return "ok", 200
 
 
@@ -54,7 +53,81 @@ def send_message(recipient_id, message_text):
         }
     }
     response = requests.post(
-        "https://graph.facebook.com/v2.6/me/messages",
+        "https://graph.facebook.com/v16.0/me/messages",
+        params=params,
+        headers=headers,
+        json=request_content,
+        timeout=30
+    )
+    response.raise_for_status()
+
+
+def send_menu(recipient_id):
+    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
+    menu_items = []
+    name = 'Чизбургер-пицца'
+    description = (
+        'мясной соус болоньезе, моцарелла, лук, соленые огурчики'
+        'томаты, соус бургер'
+    )
+    image_url = 'https://dodopizza-a.akamaihd.net/static/Img/Products/Pizza/ru-RU/1626f452-b56a-46a7-ba6e-c2c2c9707466.jpg'
+    buttons = []
+    buttons.append(
+        {
+            'type': 'postback',
+            'title': 'Добавить в корзину',
+            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+        }
+    )
+    menu_items.append(
+        {
+            'title': name,
+            'image_url': image_url,
+            'subtitle': description,
+            'buttons': buttons,
+        }
+    )
+
+    name = 'Крэйзи пепперони'
+    description = (
+        'Томатный соус, увеличенные порции цыпленка и пепперони,'
+        'моцарелла, кисло-сладкий соус'
+    )
+    image_url = 'https://dodopizza-a.akamaihd.net/static/Img/Products/Pizza/ru-RU/7aa1638e-1bee-4162-a2df-6bbaf683a486.jpg'
+    buttons = []
+    buttons.append(
+        {
+            'type': 'postback',
+            'title': 'Добавить в корзину',
+            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
+        }
+    )
+    menu_items.append(
+        {
+            'title': name,
+            'image_url': image_url,
+            'subtitle': description,
+            'buttons': buttons,
+        }
+    )
+
+    request_content = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "attachment": {
+                "type": "template",
+                "payload": {
+                    "template_type": "generic",
+                    "elements": menu_items
+                }
+            }
+        }
+    }
+    response = requests.post(
+        "https://graph.facebook.com/v16.0/me/messages",
         params=params,
         headers=headers,
         json=request_content,
