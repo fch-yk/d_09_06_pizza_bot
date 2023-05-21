@@ -15,6 +15,7 @@ with env.prefixed('ELASTIC_'):
         client_id=env('PATH_CLIENT_ID'),
         client_secret=env('PATH_CLIENT_SECRET'),
     )
+LOGO_URL = env('LOGO_URL')
 
 
 @app.route('/', methods=['GET'])
@@ -75,6 +76,26 @@ def send_menu(recipient_id):
     params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
     headers = {"Content-Type": "application/json"}
     menu_items = []
+    buttons = [
+        {
+            'type': 'postback',
+            'title': 'Корзина',
+            'payload': 'cart',
+        },
+        {
+            'type': 'postback',
+            'title': 'Сделать заказ',
+            'payload': 'order',
+        },
+    ]
+    menu_items.append(
+        {
+            'title': 'Меню',
+            'image_url': LOGO_URL,
+            'subtitle': 'Выбирайте пиццу!',
+            'buttons': buttons,
+        }
+    )
     for product in products_response['data']:
         product_id = product['id']
         buttons = []

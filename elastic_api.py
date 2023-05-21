@@ -239,6 +239,7 @@ class ElasticConnection():
         return response.json()
 
     def create_file(self, file_location: str) -> Dict:
+        self.set_access_token()
         headers = {
             'Authorization': f'Bearer {self.access_token}',
         }

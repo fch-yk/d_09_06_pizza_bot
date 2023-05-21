@@ -69,6 +69,9 @@ pip install -r requirements.txt
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
   - `REMIND_ORDER_WAIT` is an interval (in seconds) after the order, after which the bot sends an ad message (optional, 3600 by default);
   - `PAYMENT_TOKEN` is a token from one of the payment providers; you cat go to [@BotFather](https://t.me/BotFather) - your bot properties - Payments and get a test token, for example, from Sberbank;
+  - `FACEBOOK_PAGE_ACCESS_TOKEN` is a token to access your Facebook page (obligatory for the **Facebook shop bot**);
+  - `FACEBOOK_VERIFY_TOKEN` is a token to verify webhook access for your Meta application (obligatory for the **Facebook shop bot**);
+  - `LOGO_URL` is an image URL that the **Facebook shop bot** uses in the title card of the menu (obligatory for the **Facebook shop bot**);
 
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
@@ -84,6 +87,9 @@ REMIND_ORDER_AD=Будем рады приготовить для Вас сно�
 REMIND_ORDER_HELP=Если заказ до сих пор не доставлен, свяжитесь с нами!
 REMIND_ORDER_WAIT=3000
 PAYMENT_TOKEN=replace_me
+FACEBOOK_PAGE_ACCESS_TOKEN=replace_me
+FACEBOOK_VERIFY_TOKEN=replace_me
+LOGO_URL=https://cdn.dribbble.com/users/404971/screenshots/1241486/media/462c5d611f788d7802591e86e561cdfd.png
 ```
 
 ## Script `load_menu.py`
