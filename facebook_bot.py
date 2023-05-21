@@ -2,12 +2,19 @@ import requests
 from environs import Env
 from flask import Flask, request
 
+from elastic_api import ElasticConnection
+
 app = Flask(__name__)
 env = Env()
 env.read_env()
 with env.prefixed('FACEBOOK_'):
     FACEBOOK_PAGE_ACCESS_TOKEN = env("PAGE_ACCESS_TOKEN")
     FACEBOOK_VERIFY_TOKEN = env("VERIFY_TOKEN")
+with env.prefixed('ELASTIC_'):
+    elastic_connection = ElasticConnection(
+        client_id=env('PATH_CLIENT_ID'),
+        client_secret=env('PATH_CLIENT_SECRET'),
+    )
 
 
 @app.route('/', methods=['GET'])
@@ -63,55 +70,35 @@ def send_message(recipient_id, message_text):
 
 
 def send_menu(recipient_id):
+    products_response = elastic_connection.get_products_page(5, 0)
+
     params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
     headers = {"Content-Type": "application/json"}
     menu_items = []
-    name = 'Чизбургер-пицца'
-    description = (
-        'мясной соус болоньезе, моцарелла, лук, соленые огурчики'
-        'томаты, соус бургер'
-    )
-    image_url = 'https://dodopizza-a.akamaihd.net/static/Img/Products/Pizza/ru-RU/1626f452-b56a-46a7-ba6e-c2c2c9707466.jpg'
-    buttons = []
-    buttons.append(
-        {
-            'type': 'postback',
-            'title': 'Добавить в корзину',
-            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-        }
-    )
-    menu_items.append(
-        {
-            'title': name,
-            'image_url': image_url,
-            'subtitle': description,
-            'buttons': buttons,
-        }
-    )
-
-    name = 'Крэйзи пепперони'
-    description = (
-        'Томатный соус, увеличенные порции цыпленка и пепперони,'
-        'моцарелла, кисло-сладкий соус'
-    )
-    image_url = 'https://dodopizza-a.akamaihd.net/static/Img/Products/Pizza/ru-RU/7aa1638e-1bee-4162-a2df-6bbaf683a486.jpg'
-    buttons = []
-    buttons.append(
-        {
-            'type': 'postback',
-            'title': 'Добавить в корзину',
-            'payload': 'DEVELOPER_DEFINED_PAYLOAD',
-        }
-    )
-    menu_items.append(
-        {
-            'title': name,
-            'image_url': image_url,
-            'subtitle': description,
-            'buttons': buttons,
-        }
-    )
-
+    for product in products_response['data']:
+        product_id = product['id']
+        buttons = []
+        buttons.append(
+            {
+                'type': 'postback',
+                'title': 'Добавить в корзину',
+                'payload': product_id,
+            }
+        )
+        product_name = product['attributes']['name']
+        main_image_id = product['relationships']['main_image']['data']['id']
+        image_url = elastic_connection.get_file_link(main_image_id)
+        product_card = elastic_connection.get_product(product_id)["data"]
+        price = product_card["attributes"]["price"]["RUB"]["amount"]
+        formatted_price = '{:.2f}'.format(price)
+        menu_items.append(
+            {
+                'title': f'{product_name} ({formatted_price} руб.)',
+                'image_url': image_url,
+                'subtitle': product['attributes']['description'],
+                'buttons': buttons,
+            }
+        )
     request_content = {
         "recipient": {
             "id": recipient_id
