@@ -27,6 +27,7 @@ Key features:
 The project works with the following components:
 
 - The **Telegram shop bot** communicates with customers on the [Telegram](https://telegram.org/) platform;
+- The **Facebook shop bot** communicates with customers on [Facebook](https://www.facebook.com/);
 - The **Redis database** is used to save the current customer state ("in the menu", "in the cart" and so on). Go to [redislabs.com](https://redislabs.com/) to learn more about the Redis platform.
 - The **Elastic store** is used as a [CMS](https://en.wikipedia.org/wiki/Content_management_system/); it stores information about products, prices, customers and so on. Go to [elasticpath.dev](https://elasticpath.dev/) to find out more about Elastic Path Commerce Cloud.
 
@@ -51,7 +52,7 @@ pip install -r requirements.txt
   - create your **Elastic store**;
   - add a price book;
   - add a catalog;
-  - add a hierarchy;
+  - add a hierarchy and some nodes;
   - add currencies;
   - add products; you can use the `load_menu.py` script to load products from the JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
   - add a flow `Pizzerias`; you can use the `create_pizzerias_model.py` script,  (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
@@ -64,6 +65,8 @@ pip install -r requirements.txt
   - `REDIS_PORT` is a port for your **Redis database** (obligatory);
   - `ELASTIC_PATH_CLIENT_ID` is the **Elastic store** client ID  (obligatory);
   - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory);
+  - `ELASTIC_CATALOG_ID` is the **Elastic store** catalog ID (obligatory for the **Facebook shop bot**);
+  - `ELASTIC_MAIN_NODE_ID` is the **Elastic store** main node ID; the node should be in the catalog hierarchy; the products of this node will be displayed in the main  **Facebook shop bot** menu (obligatory for the **Facebook shop bot**);
   - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the developer cabinet](https://developer.tech.yandex.ru/) for more);
   - `REMIND_ORDER_AD` is an ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
@@ -82,6 +85,8 @@ REDIS_PASSWORD=replace_me
 REDIS_PORT=13604
 ELASTIC_PATH_CLIENT_ID=replace_me
 ELASTIC_PATH_CLIENT_SECRET=replace_me
+ELASTIC_CATALOG_ID=replace_me
+ELASTIC_MAIN_NODE_ID=replace_me
 YA_API_KEY=replace_me
 REMIND_ORDER_AD=Будем рады приготовить для Вас снова!
 REMIND_ORDER_HELP=Если заказ до сих пор не доставлен, свяжитесь с нами!

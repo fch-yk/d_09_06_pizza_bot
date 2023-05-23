@@ -80,6 +80,26 @@ class ElasticConnection():
         response.raise_for_status()
         return response.json()
 
+    def get_node_products(
+            self,
+            catalog_id: str,
+            node_id: str
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/'
+                f'releases/latest/nodes/{node_id}/relationships/products/'
+            ),
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def get_file_link(self, file_id):
         self.set_access_token()
         headers = {

@@ -15,6 +15,9 @@ with env.prefixed('ELASTIC_'):
         client_id=env('PATH_CLIENT_ID'),
         client_secret=env('PATH_CLIENT_SECRET'),
     )
+    ELASTIC_CATALOG_ID = env('CATALOG_ID')
+    ELASTIC_MAIN_NODE_ID = env('MAIN_NODE_ID')
+
 LOGO_URL = env('LOGO_URL')
 
 
@@ -71,10 +74,10 @@ def send_message(recipient_id, message_text):
 
 
 def send_menu(recipient_id):
-    products_response = elastic_connection.get_products_page(5, 0)
-
-    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
-    headers = {"Content-Type": "application/json"}
+    products_response = elastic_connection.get_node_products(
+        catalog_id=ELASTIC_CATALOG_ID,
+        node_id=ELASTIC_MAIN_NODE_ID,
+    )
     menu_items = []
     buttons = [
         {
@@ -109,8 +112,7 @@ def send_menu(recipient_id):
         product_name = product['attributes']['name']
         main_image_id = product['relationships']['main_image']['data']['id']
         image_url = elastic_connection.get_file_link(main_image_id)
-        product_card = elastic_connection.get_product(product_id)["data"]
-        price = product_card["attributes"]["price"]["RUB"]["amount"]
+        price = product["attributes"]["price"]["RUB"]["amount"]
         formatted_price = '{:.2f}'.format(price)
         menu_items.append(
             {
@@ -134,6 +136,8 @@ def send_menu(recipient_id):
             }
         }
     }
+    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
     response = requests.post(
         "https://graph.facebook.com/v16.0/me/messages",
         params=params,
