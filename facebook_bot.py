@@ -1,6 +1,7 @@
 import requests
 from environs import Env
 from flask import Flask, request
+from redis import Redis
 
 from elastic_api import ElasticConnection
 
@@ -18,64 +19,19 @@ with env.prefixed('ELASTIC_'):
     ELASTIC_CATALOG_ID = env('CATALOG_ID')
     ELASTIC_MAIN_NODE_ID = env('MAIN_NODE_ID')
     ELASTIC_OTHERS_NODE_ID = env('OTHERS_NODE_ID')
+with env.prefixed('REDIS_'):
+    redis_connection = Redis(
+        host=env('HOST'),
+        port=env('PORT'),
+        password=env('PASSWORD'),
+        decode_responses=True
+    )
 
 LOGO_URL = env('LOGO_URL')
 ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
 
 
-@app.route('/', methods=['GET'])
-def verify():
-    """
-    When Facebook verifies webhook callback url, it will send GET HTTP request,
-    that triggers this method. This method checks FACEBOOK_VERIFY_TOKEN.
-    """
-    if request.args.get("hub.mode") == "subscribe" and\
-            request.args.get("hub.challenge"):
-        if not request.args.get("hub.verify_token") == FACEBOOK_VERIFY_TOKEN:
-            return "Verification token mismatch", 403
-        return request.args["hub.challenge"], 200
-
-    return "Hello world", 200
-
-
-@app.route('/', methods=['POST'])
-def webhook():
-    """
-    Facebook sends POST HTTP request to our webhook, that triggers this method.
-    """
-    data = request.get_json()
-    if data["object"] == "page":
-        for entry in data["entry"]:
-            for messaging_event in entry["messaging"]:
-                if messaging_event.get("message"):
-                    print(messaging_event)
-                    sender_id = messaging_event["sender"]["id"]
-                    send_menu(sender_id)
-    return "ok", 200
-
-
-def send_message(recipient_id, message_text):
-    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
-    headers = {"Content-Type": "application/json"}
-    request_content = {
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message_text
-        }
-    }
-    response = requests.post(
-        "https://graph.facebook.com/v16.0/me/messages",
-        params=params,
-        headers=headers,
-        json=request_content,
-        timeout=30
-    )
-    response.raise_for_status()
-
-
-def send_menu(recipient_id):
+def handle_start(recipient_id, message_text):
     products_response = elastic_connection.get_node_products(
         catalog_id=ELASTIC_CATALOG_ID,
         node_id=ELASTIC_MAIN_NODE_ID,
@@ -166,6 +122,78 @@ def send_menu(recipient_id):
     }
     params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
     headers = {"Content-Type": "application/json"}
+    response = requests.post(
+        "https://graph.facebook.com/v16.0/me/messages",
+        params=params,
+        headers=headers,
+        json=request_content,
+        timeout=30
+    )
+    response.raise_for_status()
+    return 'START'
+
+
+def handle_users_reply(sender_id, message_text):
+    states_functions = {
+        'START': handle_start,
+    }
+    redis_customer_id = f'fb_pizza_shop_{sender_id}'
+    if message_text == '/start':
+        user_state = 'START'
+    else:
+        user_state = redis_connection.get(redis_customer_id)
+
+    if not user_state or user_state not in states_functions.keys():
+        user_state = 'START'
+
+    state_handler = states_functions[user_state]
+    next_state = state_handler(sender_id, message_text)
+    redis_connection.set(redis_customer_id, next_state)
+
+
+@app.route('/', methods=['GET'])
+def verify():
+    """
+    When Facebook verifies webhook callback url, it will send GET HTTP request,
+    that triggers this method. This method checks FACEBOOK_VERIFY_TOKEN.
+    """
+    if request.args.get("hub.mode") == "subscribe" and\
+            request.args.get("hub.challenge"):
+        if not request.args.get("hub.verify_token") == FACEBOOK_VERIFY_TOKEN:
+            return "Verification token mismatch", 403
+        return request.args["hub.challenge"], 200
+
+    return "Hello world", 200
+
+
+@app.route('/', methods=['POST'])
+def webhook():
+    """
+    Facebook sends POST HTTP request to our webhook, that triggers this method.
+    """
+    data = request.get_json()
+    if data["object"] == "page":
+        for entry in data["entry"]:
+            for messaging_event in entry["messaging"]:
+                if messaging_event.get("message"):
+                    sender_id = messaging_event["sender"]["id"]
+                    message_text = messaging_event["message"]["text"]
+                    handle_users_reply(sender_id, message_text)
+
+    return "ok", 200
+
+
+def send_message(recipient_id, message_text):
+    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
+    request_content = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "text": message_text
+        }
+    }
     response = requests.post(
         "https://graph.facebook.com/v16.0/me/messages",
         params=params,
