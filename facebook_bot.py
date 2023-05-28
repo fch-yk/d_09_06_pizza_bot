@@ -17,8 +17,10 @@ with env.prefixed('ELASTIC_'):
     )
     ELASTIC_CATALOG_ID = env('CATALOG_ID')
     ELASTIC_MAIN_NODE_ID = env('MAIN_NODE_ID')
+    ELASTIC_OTHERS_NODE_ID = env('OTHERS_NODE_ID')
 
 LOGO_URL = env('LOGO_URL')
+ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
 
 
 @app.route('/', methods=['GET'])
@@ -122,6 +124,32 @@ def send_menu(recipient_id):
                 'buttons': buttons,
             }
         )
+
+    buttons = []
+    nodes_response = elastic_connection.get_node_children(
+        catalog_id=ELASTIC_CATALOG_ID,
+        node_id=ELASTIC_OTHERS_NODE_ID,
+    )
+    for node in nodes_response['data']:
+        buttons.append(
+            {
+                'type': 'postback',
+                'title': node['attributes']['name'],
+                'payload': node['id'],
+            }
+        )
+
+    menu_items.append(
+        {
+            'title': 'Не нашли нужную пиццу?',
+            'image_url': ADDITIONAL_LOGO_URL,
+            'subtitle': (
+                'Остальные пиццы можно посмотреть в одной из категорий'
+            ),
+            'buttons': buttons,
+        }
+    )
+
     request_content = {
         "recipient": {
             "id": recipient_id

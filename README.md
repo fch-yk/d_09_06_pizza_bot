@@ -52,7 +52,13 @@ pip install -r requirements.txt
   - create your **Elastic store**;
   - add a price book;
   - add a catalog;
-  - add a hierarchy and some nodes;
+  - add a hierarchy `All` and parent nodes `Main`, `Others` (note: `Others` node should have maximum three children); the hierarchy should be like this:
+    - `All`
+      - `Main`
+      - `Others`
+        - `Special`
+        - `Nutricious`
+        - `Spicy`
   - add currencies;
   - add products; you can use the `load_menu.py` script to load products from the JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
   - add a flow `Pizzerias`; you can use the `create_pizzerias_model.py` script,  (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
@@ -66,7 +72,8 @@ pip install -r requirements.txt
   - `ELASTIC_PATH_CLIENT_ID` is the **Elastic store** client ID  (obligatory);
   - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory);
   - `ELASTIC_CATALOG_ID` is the **Elastic store** catalog ID (obligatory for the **Facebook shop bot**);
-  - `ELASTIC_MAIN_NODE_ID` is the **Elastic store** main node ID; the node should be in the catalog hierarchy; the products of this node will be displayed in the main  **Facebook shop bot** menu (obligatory for the **Facebook shop bot**);
+  - `ELASTIC_MAIN_NODE_ID` is the **Elastic store** main node ID; the node should be in the catalog hierarchy (obligatory for the **Facebook shop bot**); the products of this node will be displayed in the main  **Facebook shop bot** menu;
+  - `ELASTIC_OTHERS_NODE_ID` is is the **Elastic store** "Others" node ID (obligatory for the **Facebook shop bot**) the children of this node will be displayed in the additional menu;
   - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the developer cabinet](https://developer.tech.yandex.ru/) for more);
   - `REMIND_ORDER_AD` is an ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
@@ -75,6 +82,7 @@ pip install -r requirements.txt
   - `FACEBOOK_PAGE_ACCESS_TOKEN` is a token to access your Facebook page (obligatory for the **Facebook shop bot**);
   - `FACEBOOK_VERIFY_TOKEN` is a token to verify webhook access for your Meta application (obligatory for the **Facebook shop bot**);
   - `LOGO_URL` is an image URL that the **Facebook shop bot** uses in the title card of the menu (obligatory for the **Facebook shop bot**);
+  - `ADDITIONAL_LOGO_URL` is an image URL that the **Facebook shop bot** uses in the additional menu title (obligatory for the **Facebook shop bot**);
 
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
@@ -87,6 +95,7 @@ ELASTIC_PATH_CLIENT_ID=replace_me
 ELASTIC_PATH_CLIENT_SECRET=replace_me
 ELASTIC_CATALOG_ID=replace_me
 ELASTIC_MAIN_NODE_ID=replace_me
+ELASTIC_OTHERS_NODE_ID=replace_me
 YA_API_KEY=replace_me
 REMIND_ORDER_AD=Будем рады приготовить для Вас снова!
 REMIND_ORDER_HELP=Если заказ до сих пор не доставлен, свяжитесь с нами!
@@ -95,6 +104,7 @@ PAYMENT_TOKEN=replace_me
 FACEBOOK_PAGE_ACCESS_TOKEN=replace_me
 FACEBOOK_VERIFY_TOKEN=replace_me
 LOGO_URL=https://cdn.dribbble.com/users/404971/screenshots/1241486/media/462c5d611f788d7802591e86e561cdfd.png
+ADDITIONAL_LOGO_URL=https://primepizza.ru/uploads/position/large_0c07c6fd5c4dcadddaf4a2f1a2c218760b20c396.jpg
 ```
 
 ## Script `load_menu.py`
