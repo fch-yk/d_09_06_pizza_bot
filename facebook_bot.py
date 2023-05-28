@@ -26,8 +26,8 @@ ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
 @app.route('/', methods=['GET'])
 def verify():
     """
-    При верификации вебхука у Facebook он отправит запрос на этот адрес.
-    На него нужно ответить VERIFY_TOKEN.
+    When Facebook verifies webhook callback url, it will send GET HTTP request,
+    that triggers this method. This method checks FACEBOOK_VERIFY_TOKEN.
     """
     if request.args.get("hub.mode") == "subscribe" and\
             request.args.get("hub.challenge"):
@@ -41,7 +41,7 @@ def verify():
 @app.route('/', methods=['POST'])
 def webhook():
     """
-    Основной вебхук, на который будут приходить сообщения от Facebook.
+    Facebook sends POST HTTP request to our webhook, that triggers this method.
     """
     data = request.get_json()
     if data["object"] == "page":
