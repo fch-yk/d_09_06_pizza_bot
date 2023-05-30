@@ -1,3 +1,5 @@
+import functools
+
 import requests
 from environs import Env
 from flask import Flask, request
@@ -31,10 +33,31 @@ LOGO_URL = env('LOGO_URL')
 ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
 
 
-def handle_start(recipient_id, message_text):
+def send_message(recipient_id, message_text):
+    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
+    request_content = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "text": message_text
+        }
+    }
+    response = requests.post(
+        "https://graph.facebook.com/v17.0/me/messages",
+        params=params,
+        headers=headers,
+        json=request_content,
+        timeout=30
+    )
+    response.raise_for_status()
+
+
+def send_menu(recipient_id, menu_subtitle, node_id):
     products_response = elastic_connection.get_node_products(
         catalog_id=ELASTIC_CATALOG_ID,
-        node_id=ELASTIC_MAIN_NODE_ID,
+        node_id=node_id,
     )
     menu_items = []
     buttons = [
@@ -53,7 +76,7 @@ def handle_start(recipient_id, message_text):
         {
             'title': 'Меню',
             'image_url': LOGO_URL,
-            'subtitle': 'Выбирайте пиццу!',
+            'subtitle': menu_subtitle,
             'buttons': buttons,
         }
     )
@@ -82,29 +105,48 @@ def handle_start(recipient_id, message_text):
         )
 
     buttons = []
-    nodes_response = elastic_connection.get_node_children(
-        catalog_id=ELASTIC_CATALOG_ID,
-        node_id=ELASTIC_OTHERS_NODE_ID,
-    )
-    for node in nodes_response['data']:
+    if node_id == ELASTIC_MAIN_NODE_ID:
+        nodes_response = elastic_connection.get_node_children(
+            catalog_id=ELASTIC_CATALOG_ID,
+            node_id=ELASTIC_OTHERS_NODE_ID,
+        )
+        for node in nodes_response['data']:
+            buttons.append(
+                {
+                    'type': 'postback',
+                    'title': node['attributes']['name'],
+                    'payload': node['id'],
+                }
+            )
+
+        menu_items.append(
+            {
+                'title': 'Не нашли нужную пиццу?',
+                'image_url': ADDITIONAL_LOGO_URL,
+                'subtitle': (
+                    'Остальные пиццы можно посмотреть в одной из категорий'
+                ),
+                'buttons': buttons,
+            }
+        )
+    else:
         buttons.append(
             {
                 'type': 'postback',
-                'title': node['attributes']['name'],
-                'payload': node['id'],
+                'title': 'Основные',
+                'payload': ELASTIC_MAIN_NODE_ID,
             }
         )
-
-    menu_items.append(
-        {
-            'title': 'Не нашли нужную пиццу?',
-            'image_url': ADDITIONAL_LOGO_URL,
-            'subtitle': (
-                'Остальные пиццы можно посмотреть в одной из категорий'
-            ),
-            'buttons': buttons,
-        }
-    )
+        menu_items.append(
+            {
+                'title': 'Не нашли нужную пиццу?',
+                'image_url': ADDITIONAL_LOGO_URL,
+                'subtitle': (
+                    'Вернитесь в меню Основные'
+                ),
+                'buttons': buttons,
+            }
+        )
 
     request_content = {
         "recipient": {
@@ -123,19 +165,59 @@ def handle_start(recipient_id, message_text):
     params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
     headers = {"Content-Type": "application/json"}
     response = requests.post(
-        "https://graph.facebook.com/v16.0/me/messages",
+        "https://graph.facebook.com/v17.0/me/messages",
         params=params,
         headers=headers,
         json=request_content,
         timeout=30
     )
     response.raise_for_status()
-    return 'START'
+    return 'HANDLE_MENU'
 
 
-def handle_users_reply(sender_id, message_text):
+def handle_menu(recipient_id, postback_title, postback_payload):
+    if not postback_payload:
+        send_message(
+            recipient_id=recipient_id,
+            message_text=(
+                'Нажмите кнопку для выбора пиццы, перехода к корзине '
+                'или перехода в другое меню. '
+                'Отправьте /start для перехода в основное меню.'
+            )
+        )
+        return 'HANDLE_MENU'
+    send_menu(
+        recipient_id=recipient_id,
+        menu_subtitle=postback_title,
+        node_id=postback_payload,
+    )
+    return 'HANDLE_MENU'
+
+
+def handle_start(recipient_id):
+    send_menu(
+        recipient_id=recipient_id,
+        menu_subtitle='Основные',
+        node_id=ELASTIC_MAIN_NODE_ID,
+    )
+    return 'HANDLE_MENU'
+
+
+def handle_users_reply(
+    sender_id,
+    *,
+    message_text='',
+    postback_title='',
+    postback_payload='',
+):
+    menu_handler = functools.partial(
+        handle_menu,
+        postback_title=postback_title,
+        postback_payload=postback_payload,
+    )
     states_functions = {
         'START': handle_start,
+        'HANDLE_MENU': menu_handler,
     }
     redis_customer_id = f'fb_pizza_shop_{sender_id}'
     if message_text == '/start':
@@ -147,7 +229,7 @@ def handle_users_reply(sender_id, message_text):
         user_state = 'START'
 
     state_handler = states_functions[user_state]
-    next_state = state_handler(sender_id, message_text)
+    next_state = state_handler(recipient_id=sender_id)
     redis_connection.set(redis_customer_id, next_state)
 
 
@@ -176,32 +258,19 @@ def webhook():
         for entry in data["entry"]:
             for messaging_event in entry["messaging"]:
                 if messaging_event.get("message"):
-                    sender_id = messaging_event["sender"]["id"]
-                    message_text = messaging_event["message"]["text"]
-                    handle_users_reply(sender_id, message_text)
+                    handle_users_reply(
+                        sender_id=messaging_event["sender"]["id"],
+                        message_text=messaging_event["message"]["text"],
+                    )
+                if messaging_event.get("postback"):
+                    postback = messaging_event["postback"]
+                    handle_users_reply(
+                        sender_id=messaging_event["sender"]["id"],
+                        postback_title=postback["title"],
+                        postback_payload=postback["payload"],
+                    )
 
     return "ok", 200
-
-
-def send_message(recipient_id, message_text):
-    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
-    headers = {"Content-Type": "application/json"}
-    request_content = {
-        "recipient": {
-            "id": recipient_id
-        },
-        "message": {
-            "text": message_text
-        }
-    }
-    response = requests.post(
-        "https://graph.facebook.com/v16.0/me/messages",
-        params=params,
-        headers=headers,
-        json=request_content,
-        timeout=30
-    )
-    response.raise_for_status()
 
 
 if __name__ == '__main__':
