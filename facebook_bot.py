@@ -6,6 +6,7 @@ from flask import Flask, request
 from redis import Redis
 
 from elastic_api import ElasticConnection
+import json
 
 app = Flask(__name__)
 env = Env()
@@ -31,6 +32,90 @@ with env.prefixed('REDIS_'):
 
 LOGO_URL = env('LOGO_URL')
 ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
+CART_IMAGE_URL = env('CART_IMAGE_URL')
+
+
+def get_cart_id(recipient_id):
+    return f'fb_{recipient_id}'
+
+
+def send_cart(recipient_id):
+    cart_id = get_cart_id(recipient_id)
+    cart = elastic_connection.get_cart(cart_id=cart_id)
+    cart_items = elastic_connection.get_cart_items(cart_id=cart_id)
+    menu_items = []
+    buttons = [
+        {
+            'type': 'postback',
+            'title': 'К меню',
+            'payload': 'to_menu',
+        },
+    ]
+    amount = cart['data']['meta']['display_price']['with_tax']['formatted']
+    menu_items.append(
+        {
+            'title': f'Ваш заказ на сумму {amount}',
+            'image_url': CART_IMAGE_URL,
+            'buttons': buttons,
+        }
+    )
+
+    for cart_item in cart_items['data']:
+        buttons = [
+            {
+                'type': 'postback',
+                'title': 'Добавить еще одну',
+                'payload': json.dumps(
+                    [cart_item["product_id"], cart_item["name"], ]
+                ),
+            },
+            {
+                'type': 'postback',
+                'title': 'Убрать из корзины',
+                'payload': json.dumps(
+                    [cart_item["id"], cart_item["name"], ]
+                ),
+            },
+
+        ]
+        display_price = cart_item["meta"]["display_price"]["with_tax"]
+        menu_items.append(
+            {
+                'title': cart_item['name'],
+                'image_url': cart_item['image']['href'],
+                'subtitle': (
+                    f'{cart_item["quantity"]} шт. x '
+                    f'{display_price["unit"]["formatted"]} '
+                    f'= {display_price["value"]["formatted"]}'
+                ),
+                'buttons': buttons,
+            }
+        )
+
+    request_content = {
+        "recipient": {
+            "id": recipient_id
+        },
+        "message": {
+            "attachment": {
+                "type": "template",
+                "payload": {
+                    "template_type": "generic",
+                    "elements": menu_items
+                }
+            }
+        }
+    }
+    params = {"access_token": FACEBOOK_PAGE_ACCESS_TOKEN}
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(
+        "https://graph.facebook.com/v17.0/me/messages",
+        params=params,
+        headers=headers,
+        json=request_content,
+        timeout=30
+    )
+    response.raise_for_status()
 
 
 def send_message(recipient_id, message_text):
@@ -66,11 +151,6 @@ def send_menu(recipient_id, menu_subtitle, node_id):
             'title': 'Корзина',
             'payload': 'cart',
         },
-        {
-            'type': 'postback',
-            'title': 'Сделать заказ',
-            'payload': 'order',
-        },
     ]
     menu_items.append(
         {
@@ -82,15 +162,15 @@ def send_menu(recipient_id, menu_subtitle, node_id):
     )
     for product in products_response['data']:
         product_id = product['id']
+        product_name = product['attributes']['name']
         buttons = []
         buttons.append(
             {
                 'type': 'postback',
                 'title': 'Добавить в корзину',
-                'payload': product_id,
+                'payload': json.dumps([product_id, product_name, ])
             }
         )
-        product_name = product['attributes']['name']
         main_image_id = product['relationships']['main_image']['data']['id']
         image_url = elastic_connection.get_file_link(main_image_id)
         price = product["attributes"]["price"]["RUB"]["amount"]
@@ -175,6 +255,50 @@ def send_menu(recipient_id, menu_subtitle, node_id):
     return 'HANDLE_MENU'
 
 
+def handle_cart(recipient_id, postback_title, postback_payload):
+    if postback_title == 'К меню':
+        send_menu(
+            recipient_id=recipient_id,
+            menu_subtitle='Основные',
+            node_id=ELASTIC_MAIN_NODE_ID,
+        )
+        return 'HANDLE_MENU'
+    if postback_title == 'Добавить еще одну':
+        product_id, product_name = json.loads(postback_payload)
+        elastic_connection.add_product_to_cart(
+            cart_id=get_cart_id(recipient_id),
+            product_id=product_id,
+            quantity=1,
+        )
+        send_message(
+            recipient_id=recipient_id,
+            message_text=f'Пицца {product_name} была добавлена в корзину!'
+        )
+        send_cart(recipient_id)
+        return 'HANDLE_CART'
+    if postback_title == 'Убрать из корзины':
+        item_id, product_name = json.loads(postback_payload)
+        elastic_connection.remove_cart_item(
+            cart_id=get_cart_id(recipient_id),
+            item_id=item_id,
+        )
+        send_message(
+            recipient_id=recipient_id,
+            message_text=f'Пицца {product_name} была удалена из корзины!'
+        )
+        send_cart(recipient_id)
+        return 'HANDLE_CART'
+
+    send_message(
+        recipient_id=recipient_id,
+        message_text=(
+            'Используйте кнопки, чтобы вернуться в меню '
+            'или добавить/убрать пиццу из корзины!'
+        )
+    )
+    return 'HANDLE_CART'
+
+
 def handle_menu(recipient_id, postback_title, postback_payload):
     if not postback_payload:
         send_message(
@@ -186,6 +310,24 @@ def handle_menu(recipient_id, postback_title, postback_payload):
             )
         )
         return 'HANDLE_MENU'
+
+    if postback_title == 'Добавить в корзину':
+        product_id, product_name = json.loads(postback_payload)
+        elastic_connection.add_product_to_cart(
+            cart_id=get_cart_id(recipient_id),
+            product_id=product_id,
+            quantity=1
+        )
+        send_message(
+            recipient_id=recipient_id,
+            message_text=f'Пицца "{product_name}" добавлена в корзину'
+        )
+        return 'HANDLE_MENU'
+
+    if postback_title == 'Корзина':
+        send_cart(recipient_id)
+        return 'HANDLE_CART'
+
     send_menu(
         recipient_id=recipient_id,
         menu_subtitle=postback_title,
@@ -210,6 +352,11 @@ def handle_users_reply(
     postback_title='',
     postback_payload='',
 ):
+    cart_handler = functools.partial(
+        handle_cart,
+        postback_title=postback_title,
+        postback_payload=postback_payload,
+    )
     menu_handler = functools.partial(
         handle_menu,
         postback_title=postback_title,
@@ -218,6 +365,7 @@ def handle_users_reply(
     states_functions = {
         'START': handle_start,
         'HANDLE_MENU': menu_handler,
+        'HANDLE_CART': cart_handler,
     }
     redis_customer_id = f'fb_pizza_shop_{sender_id}'
     if message_text == '/start':
