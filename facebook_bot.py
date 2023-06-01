@@ -432,7 +432,8 @@ def verify():
 @app.route('/', methods=['POST'])
 def webhook():
     """
-    Facebook sends POST HTTP request to our webhook, that triggers this method.
+    Facebook sends POST HTTP requests to our webhook.'
+    'The requests  trigger this method.
     """
     data = request.get_json()
     if data["object"] == "page":

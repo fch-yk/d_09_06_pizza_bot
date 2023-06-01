@@ -1,10 +1,13 @@
-# Pizza shop telegram bot
+# Pizza shop bots
 
-Key features:
+There are two bots in our pizza shop: the **Telegram shop bot** and the **Facebook shop bot**.
+
+## Key features of the **Telegram shop bot**
 
 - The bot shows the menu;
 - The user can go to the product details;
 - The user can add products to the cart;
+- The user can remove products from the cart;
 - The bot finds the nearest pizzeria and suggests a delivery or a pickup;
 - The user can make a payment;
 - The bot sends the user's location to the courier;
@@ -22,13 +25,21 @@ Key features:
 
 ![bot delivery](screenshots/bot_delivery.gif)
 
+## Key features of the **Facebook shop bot**
+
+- The bot shows a main menu (carousel) and buttons to go to additional menus;
+- The user can add products to the cart;
+- The user can remove products from the cart;
+
+![facebook bot](screenshots/fb_bot.gif)
+
 ## Project components
 
 The project works with the following components:
 
 - The **Telegram shop bot** communicates with customers on the [Telegram](https://telegram.org/) platform;
 - The **Facebook shop bot** communicates with customers on [Facebook](https://www.facebook.com/);
-- The **Redis database** is used to save the current customer state ("in the menu", "in the cart" and so on). Go to [redislabs.com](https://redislabs.com/) to learn more about the Redis platform.
+- The **Redis database** is used to save the current customer state ("in the menu", "in the cart" and so on) and to save a menu cash (only for the **Facebook shop bot**). Go to [redislabs.com](https://redislabs.com/) to learn more about the Redis platform.
 - The **Elastic store** is used as a [CMS](https://en.wikipedia.org/wiki/Content_management_system/); it stores information about products, prices, customers and so on. Go to [elasticpath.dev](https://elasticpath.dev/) to find out more about Elastic Path Commerce Cloud.
 
 ## Prerequisites
@@ -52,18 +63,19 @@ pip install -r requirements.txt
   - create your **Elastic store**;
   - add a price book;
   - add a catalog;
-  - add a hierarchy `All` and parent nodes `Main`, `Others` (note: `Others` node should have maximum three children); the hierarchy should be like this:
+  - add a hierarchy `All` and parent nodes `Main`, `Others` (note: `Others` node should have the maximum three children); the hierarchy should be like this:
     - `All`
       - `Main`
       - `Others`
         - `Special`
-        - `Nutricious`
+        - `Nutritious`
         - `Spicy`
   - add currencies;
   - add products; you can use the `load_menu.py` script to load products from the JSON file (see [Script `load_menu.py`](#script-load_menupy) for more);
   - add a flow `Pizzerias`; you can use the `create_pizzerias_model.py` script,  (see [Script `create_pizzerias_model.py`](#script-create_pizzerias_modelpy) for more);
   - add pizzerias entries; you can use the `load_addresses.py` script to load pizzerias from the JSON file (see [Script `load_addresses.py`](#script-load_addressespy) for more);
-  - add latitude and longitude to the `customers` flow; you can use the `add_customer_location.py` script (see [Script `add_customer_location.py`](#script-add_customer_locationpy) for more)
+  - add latitude and longitude to the `customers` flow; you can use the `add_customer_location.py` script (see [Script `add_customer_location.py`](#script-add_customer_locationpy) for more);
+- Set up your Facebook application (go to [Meta for developers for more](https://developers.facebook.com/));
 - Set up environmental variables in your operating system or in .env file. The variables are:
   - `PIZZA_BOT_TOKEN` is your **Telegram shop bot** token from [@BotFather](https://t.me/BotFather) (obligatory);
   - `REDIS_HOST` is a public endpoint for your **Redis database** (obligatory);
@@ -73,12 +85,12 @@ pip install -r requirements.txt
   - `ELASTIC_PATH_CLIENT_SECRET` is the **Elastic store** client secret  (obligatory);
   - `ELASTIC_CATALOG_ID` is the **Elastic store** catalog ID (obligatory for the **Facebook shop bot**);
   - `ELASTIC_MAIN_NODE_ID` is the **Elastic store** main node ID; the node should be in the catalog hierarchy (obligatory for the **Facebook shop bot**); the products of this node will be displayed in the main  **Facebook shop bot** menu;
-  - `ELASTIC_OTHERS_NODE_ID` is is the **Elastic store** "Others" node ID (obligatory for the **Facebook shop bot**) the children of this node will be displayed in the additional menu;
+  - `ELASTIC_OTHERS_NODE_ID` is the **Elastic store** "Others" node ID (obligatory for the **Facebook shop bot**); the children of this node will be displayed in the additional menu;
   - `YA_API_KEY` is your YANDEX API key that is used to suggest the nearest pizzeria (obligatory, go to [the developer cabinet](https://developer.tech.yandex.ru/) for more);
   - `REMIND_ORDER_AD` is an ad part of a message that is sent by the **Telegram shop bot** after the order (optional, "Заказывайте снова!" by default);
   - `REMIND_ORDER_HELP` is a help part of a message that is sent by the **Telegram shop bot** after the order (optional, "Если заказ не доставлен - звоните!" by default);
   - `REMIND_ORDER_WAIT` is an interval (in seconds) after the order, after which the bot sends an ad message (optional, 3600 by default);
-  - `PAYMENT_TOKEN` is a token from one of the payment providers; you cat go to [@BotFather](https://t.me/BotFather) - your bot properties - Payments and get a test token, for example, from Sberbank;
+  - `PAYMENT_TOKEN` is a token from one of the payment providers; you can go to [@BotFather](https://t.me/BotFather) - your bot properties - Payments and get a test token, for example, from Sberbank (obligatory for the **Telegram shop bot**);
   - `FACEBOOK_PAGE_ACCESS_TOKEN` is a token to access your Facebook page (obligatory for the **Facebook shop bot**);
   - `FACEBOOK_VERIFY_TOKEN` is a token to verify webhook access for your Meta application (obligatory for the **Facebook shop bot**);
   - `LOGO_URL` is an image URL that the **Facebook shop bot** uses in the title card of the menu (obligatory for the **Facebook shop bot**);
@@ -173,12 +185,24 @@ Run:
 python add_customer_location.py
 ```
 
-## Usage of the Telegram shop bot
+## Usage
+
+### Usage of the Telegram shop bot
 
 - Start your **Telegram shop bot**:
 
 ```bash
 python tg_bot.py
+```
+
+- Go to the bot and start shopping.
+
+### Usage of the Facebook shop bot
+
+- Start your **Facebook shop bot**:
+
+```bash
+python facebook_bot.py
 ```
 
 - Go to the bot and start shopping.
