@@ -1,4 +1,6 @@
 import functools
+import json
+import logging
 
 import requests
 from environs import Env
@@ -6,8 +8,8 @@ from flask import Flask, request
 from redis import Redis
 
 from elastic_api import ElasticConnection
-import json
 
+logger = logging.getLogger(__file__)
 app = Flask(__name__)
 env = Env()
 env.read_env()
@@ -33,6 +35,7 @@ with env.prefixed('REDIS_'):
 LOGO_URL = env('LOGO_URL')
 ADDITIONAL_LOGO_URL = env('ADDITIONAL_LOGO_URL')
 CART_IMAGE_URL = env('CART_IMAGE_URL')
+DEBUG_MODE = env.bool('DEBUG_MODE', False)
 
 
 def get_cart_id(recipient_id):
@@ -140,93 +143,123 @@ def send_message(recipient_id, message_text):
 
 
 def send_menu(recipient_id, menu_subtitle, node_id):
-    products_response = elastic_connection.get_node_products(
-        catalog_id=ELASTIC_CATALOG_ID,
-        node_id=node_id,
-    )
-    menu_items = []
-    buttons = [
-        {
-            'type': 'postback',
-            'title': 'Корзина',
-            'payload': 'cart',
-        },
-    ]
-    menu_items.append(
-        {
-            'title': 'Меню',
-            'image_url': LOGO_URL,
-            'subtitle': menu_subtitle,
-            'buttons': buttons,
-        }
-    )
-    for product in products_response['data']:
-        product_id = product['id']
-        product_name = product['attributes']['name']
-        buttons = []
-        buttons.append(
+    latest_catalog_release_id = elastic_connection.get_latest_catalog_release(
+        catalog_id=ELASTIC_CATALOG_ID
+    )['data']['id']
+    logger.debug('Latest catalog release id: %s', latest_catalog_release_id)
+    menu_cash_key = json.dumps([ELASTIC_CATALOG_ID, node_id, ])
+    update_menu_cash = False
+    menu_cash = redis_connection.get(menu_cash_key)
+    if not menu_cash:
+        update_menu_cash = True
+    else:
+        menu_cash = json.loads(menu_cash)
+        if menu_cash['release_id'] != latest_catalog_release_id:
+            update_menu_cash = True
+
+    if update_menu_cash:
+        products_response = elastic_connection.get_node_products(
+            catalog_id=ELASTIC_CATALOG_ID,
+            node_id=node_id,
+        )
+        menu_items = []
+        buttons = [
             {
                 'type': 'postback',
-                'title': 'Добавить в корзину',
-                'payload': json.dumps([product_id, product_name, ])
-            }
-        )
-        main_image_id = product['relationships']['main_image']['data']['id']
-        image_url = elastic_connection.get_file_link(main_image_id)
-        price = product["attributes"]["price"]["RUB"]["amount"]
-        formatted_price = '{:.2f}'.format(price)
+                'title': 'Корзина',
+                'payload': 'cart',
+            },
+        ]
         menu_items.append(
             {
-                'title': f'{product_name} ({formatted_price} руб.)',
-                'image_url': image_url,
-                'subtitle': product['attributes']['description'],
+                'title': 'Меню',
+                'image_url': LOGO_URL,
+                'subtitle': menu_subtitle,
                 'buttons': buttons,
             }
         )
-
-    buttons = []
-    if node_id == ELASTIC_MAIN_NODE_ID:
-        nodes_response = elastic_connection.get_node_children(
-            catalog_id=ELASTIC_CATALOG_ID,
-            node_id=ELASTIC_OTHERS_NODE_ID,
-        )
-        for node in nodes_response['data']:
+        for product in products_response['data']:
+            product_id = product['id']
+            product_name = product['attributes']['name']
+            buttons = []
             buttons.append(
                 {
                     'type': 'postback',
-                    'title': node['attributes']['name'],
-                    'payload': node['id'],
+                    'title': 'Добавить в корзину',
+                    'payload': json.dumps([product_id, product_name, ])
+                }
+            )
+            main_image_id = (
+                product['relationships']['main_image']['data']['id']
+            )
+            image_url = elastic_connection.get_file_link(main_image_id)
+            price = product["attributes"]["price"]["RUB"]["amount"]
+            formatted_price = '{:.2f}'.format(price)
+            menu_items.append(
+                {
+                    'title': f'{product_name} ({formatted_price} руб.)',
+                    'image_url': image_url,
+                    'subtitle': product['attributes']['description'],
+                    'buttons': buttons,
                 }
             )
 
-        menu_items.append(
-            {
-                'title': 'Не нашли нужную пиццу?',
-                'image_url': ADDITIONAL_LOGO_URL,
-                'subtitle': (
-                    'Остальные пиццы можно посмотреть в одной из категорий'
-                ),
-                'buttons': buttons,
-            }
+        buttons = []
+        if node_id == ELASTIC_MAIN_NODE_ID:
+            nodes_response = elastic_connection.get_node_children(
+                catalog_id=ELASTIC_CATALOG_ID,
+                node_id=ELASTIC_OTHERS_NODE_ID,
+            )
+            for node in nodes_response['data']:
+                buttons.append(
+                    {
+                        'type': 'postback',
+                        'title': node['attributes']['name'],
+                        'payload': node['id'],
+                    }
+                )
+
+            menu_items.append(
+                {
+                    'title': 'Не нашли нужную пиццу?',
+                    'image_url': ADDITIONAL_LOGO_URL,
+                    'subtitle': (
+                        'Остальные пиццы можно посмотреть в одной из категорий'
+                    ),
+                    'buttons': buttons,
+                }
+            )
+        else:
+            buttons.append(
+                {
+                    'type': 'postback',
+                    'title': 'Основные',
+                    'payload': ELASTIC_MAIN_NODE_ID,
+                }
+            )
+            menu_items.append(
+                {
+                    'title': 'Не нашли нужную пиццу?',
+                    'image_url': ADDITIONAL_LOGO_URL,
+                    'subtitle': (
+                        'Вернитесь в меню Основные'
+                    ),
+                    'buttons': buttons,
+                }
+            )
+
+        menu_cash = json.dumps(
+            obj={
+                'release_id': latest_catalog_release_id,
+                'menu_items': menu_items,
+            },
+            ensure_ascii=False,
         )
+        redis_connection.set(name=menu_cash_key, value=menu_cash,)
+        logger.debug('The menu cash is updated')
     else:
-        buttons.append(
-            {
-                'type': 'postback',
-                'title': 'Основные',
-                'payload': ELASTIC_MAIN_NODE_ID,
-            }
-        )
-        menu_items.append(
-            {
-                'title': 'Не нашли нужную пиццу?',
-                'image_url': ADDITIONAL_LOGO_URL,
-                'subtitle': (
-                    'Вернитесь в меню Основные'
-                ),
-                'buttons': buttons,
-            }
-        )
+        menu_items = menu_cash['menu_items']
+        logger.debug('The menu items are got from the cash')
 
     request_content = {
         "recipient": {
@@ -422,4 +455,12 @@ def webhook():
 
 
 if __name__ == '__main__':
+    if DEBUG_MODE:
+        logging.basicConfig(
+            format=(
+                '%(process)d %(levelname)s %(asctime)s %(filename)s '
+                '%(funcName)s %(lineno)d %(message)s'
+            ),
+        )
+        logger.setLevel(logging.DEBUG)
     app.run(debug=True)

@@ -578,3 +578,22 @@ class ElasticConnection():
         )
         response.raise_for_status()
         return response.json()
+
+    def get_latest_catalog_release(
+        self,
+        catalog_id: str,
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/'
+                'releases/latest'
+            ),
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()

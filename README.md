@@ -84,6 +84,7 @@ pip install -r requirements.txt
   - `LOGO_URL` is an image URL that the **Facebook shop bot** uses in the title card of the menu (obligatory for the **Facebook shop bot**);
   - `ADDITIONAL_LOGO_URL` is an image URL that the **Facebook shop bot** uses in the additional menu title (obligatory for the **Facebook shop bot**);
   - `CART_IMAGE_URL` is an image URL that the **Facebook shop bot** uses in the cart (obligatory for the **Facebook shop bot**);
+  - `DEBUG_MODE` is a boolean that turns debug logging on or off, optional, default is 'False' (off);
 
 To set up variables in .env file, create it in the root directory of the project and fill it up like this:
 
@@ -107,6 +108,7 @@ FACEBOOK_VERIFY_TOKEN=replace_me
 LOGO_URL=https://cdn.dribbble.com/users/404971/screenshots/1241486/media/462c5d611f788d7802591e86e561cdfd.png
 ADDITIONAL_LOGO_URL=https://primepizza.ru/uploads/position/large_0c07c6fd5c4dcadddaf4a2f1a2c218760b20c396.jpg
 CART_IMAGE_URL=https://static.vecteezy.com/system/resources/thumbnails/004/947/797/small_2x/pizza-delivery-with-courier-and-cart-shop-free-vector.jpg
+DEBUG_MODE=True
 ```
 
 ## Script `load_menu.py`
