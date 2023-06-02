@@ -80,6 +80,26 @@ class ElasticConnection():
         response.raise_for_status()
         return response.json()
 
+    def get_node_products(
+            self,
+            catalog_id: str,
+            node_id: str
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/'
+                f'releases/latest/nodes/{node_id}/relationships/products/'
+            ),
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def get_file_link(self, file_id):
         self.set_access_token()
         headers = {
@@ -239,6 +259,7 @@ class ElasticConnection():
         return response.json()
 
     def create_file(self, file_location: str) -> Dict:
+        self.set_access_token()
         headers = {
             'Authorization': f'Bearer {self.access_token}',
         }
@@ -514,6 +535,64 @@ class ElasticConnection():
             url=f'https://api.moltin.com/v2/customers/{customer_id}/',
             headers=headers,
             json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_nodes(
+            self,
+            catalog_id: str,
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/releases/'
+                'latest/nodes'
+            ),
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_node_children(
+            self,
+            catalog_id: str,
+            node_id: str,
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/releases/'
+                f'latest/nodes/{node_id}/relationships/children'
+            ),
+            headers=headers,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_latest_catalog_release(
+        self,
+        catalog_id: str,
+    ):
+        self.set_access_token()
+        headers = {
+            'Authorization': f'Bearer {self.access_token}',
+        }
+        response = requests.get(
+            url=(
+                f'https://api.moltin.com/pcm/catalogs/{catalog_id}/'
+                'releases/latest'
+            ),
+            headers=headers,
             timeout=30,
         )
         response.raise_for_status()
