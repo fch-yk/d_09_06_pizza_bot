@@ -22,7 +22,7 @@ class ElasticConnection():
             'grant_type': 'client_credentials',
         }
 
-        response = requests.get(
+        response = requests.post(
             'https://api.moltin.com/oauth/access_token/',
             data=payload,
             timeout=30,
